@@ -222,7 +222,7 @@ export default function LuckyWheel() {
         {/* แผงควบคุม (Control Panel) */}
         <div className="w-full max-w-md bg-black/80 border border-white/10 p-8 rounded-[3rem] shadow-2xl backdrop-blur-md">
           <div className="flex justify-between items-center mb-8 px-4">
-            <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">Bet Amount</span>
+            <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">ลงเดิมพัน</span>
             <div className="flex items-center space-x-6">
               <button onClick={() => setBet(Math.max(10, bet - 10))} disabled={spinning} className="text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">－</button>
               <div className="flex items-center">
