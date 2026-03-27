@@ -10,37 +10,37 @@ export default function HomePage() {
       id: 1, 
       name: 'ไพ่แคง', 
       href: '/games/kaeng', 
-      image: 'https://iili.io/qtxLJQ1.png' // ใส่ URL รูปภาพตรงนี้ครับ
+      image: 'https://i.pinimg.com/736x/05/e0/95/05e095a6df3e5de682e1bb240e967415.jpg' // ใส่ URL รูปภาพตรงนี้ครับ
     },
     { 
       id: 2, 
       name: 'ป๊อกเด้ง', 
       href: '/games/pokdeng', 
-      image: 'https://iili.io/qtz2Rxs.png' // ถ้าเว้นว่างไว้ ระบบจะโชว์ไอคอนสำรองให้เอง
+      image: 'https://i.pinimg.com/736x/da/84/de/da84de1f7190142f164bd83bd8262aab.jpg' // ถ้าเว้นว่างไว้ ระบบจะโชว์ไอคอนสำรองให้เอง
     },
     { 
       id: 3, 
       name: 'วงล้อเสี่ยงโชค', 
       href: '/games/wheel', 
-      image: 'https://iili.io/qtzTVae.png' 
+      image: 'https://i.pinimg.com/1200x/f7/77/e0/f777e0a3d334672b4dc4990f9ec34245.jpg' 
     },
     { 
       id: 4, 
       name: 'สล็อตแมชชีน', 
       href: '/games/slot', // เชื่อมไปยังหน้าที่เราสร้างไว้
-      image: 'https://iili.io/qtzhMKX.png' 
+      image: 'https://i.pinimg.com/736x/3f/65/0c/3f650c2b544cdf090f2399816728b9b9.jpg' 
     },
     { 
       id: 5, 
       name: 'ไฮโล', 
       href: '/games/hilo', 
-      image: 'https://iili.io/qtIzHIR.png' 
+      image: 'https://i.pinimg.com/1200x/86/ee/a9/86eea9da8a39a38b64f220d87bb0fc70.jpg' 
     },
     { 
       id: 6, 
       name: 'น้ำเต้าปูปลา', 
       href: '/games/fish-prawn-crab', 
-      image: 'https://iili.io/qtI0s9V.png' 
+      image: 'https://i.pinimg.com/736x/d3/01/b9/d301b9ba0d9d64471063f84baa57e9ff.jpg' 
     },
   ]
 
