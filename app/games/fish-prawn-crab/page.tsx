@@ -4,13 +4,14 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
+// ✅ อัปเกรดสีให้เป็น Gradient ให้ดูพรีเมียมขึ้น
 const ANIMALS = [
-  { id: 'FISH', label: 'ปลา', icon: '🐟', color: 'bg-blue-500/20' },
-  { id: 'PRAWN', label: 'กุ้ง', icon: '🦐', color: 'bg-orange-500/20' },
-  { id: 'CRAB', label: 'ปู', icon: '🦀', color: 'bg-red-500/20' },
-  { id: 'TIGER', label: 'เสือ', icon: '🐯', color: 'bg-yellow-600/20' },
-  { id: 'GOURD', label: 'น้ำเต้า', icon: '🍶', color: 'bg-green-600/20' },
-  { id: 'ROOSTER', label: 'ไก่', icon: '🐓', color: 'bg-pink-500/20' },
+  { id: 'FISH', label: 'ปลา', icon: '🐟', color: 'bg-gradient-to-br from-blue-900/60 to-black border-blue-500/50 hover:border-blue-400', shadow: 'rgba(59,130,246,0.5)' },
+  { id: 'PRAWN', label: 'กุ้ง', icon: '🦐', color: 'bg-gradient-to-br from-orange-900/60 to-black border-orange-500/50 hover:border-orange-400', shadow: 'rgba(249,115,22,0.5)' },
+  { id: 'CRAB', label: 'ปู', icon: '🦀', color: 'bg-gradient-to-br from-red-900/60 to-black border-red-500/50 hover:border-red-400', shadow: 'rgba(239,68,68,0.5)' },
+  { id: 'TIGER', label: 'เสือ', icon: '🐯', color: 'bg-gradient-to-br from-yellow-900/60 to-black border-yellow-500/50 hover:border-yellow-400', shadow: 'rgba(234,179,8,0.5)' },
+  { id: 'GOURD', label: 'น้ำเต้า', icon: '🍶', color: 'bg-gradient-to-br from-green-900/60 to-black border-green-500/50 hover:border-green-400', shadow: 'rgba(34,197,94,0.5)' },
+  { id: 'ROOSTER', label: 'ไก่', icon: '🐓', color: 'bg-gradient-to-br from-pink-900/60 to-black border-pink-500/50 hover:border-pink-400', shadow: 'rgba(236,72,153,0.5)' },
 ]
 
 export default function FishPrawnCrab() {
@@ -45,10 +46,8 @@ export default function FishPrawnCrab() {
     }
   }
 
-  // ✅ ระบบวางเดิมพัน (เต็งเลขเดียว/สัตว์เดียว)
   const placeBet = (label: string) => {
     if (isRolling) return
-    // กดอันใหม่ อันเก่าต้องหาย (Mutual Exclusive)
     setBets({ [label]: (bets[label] || 0) + currentChip })
   }
 
@@ -62,11 +61,9 @@ export default function FishPrawnCrab() {
     setResultMsg({ text: '', color: '' })
     playEffect(shakeSnd)
 
-    // หักเงินเดิมพันออกจากบัญชีทันที
     await supabase.from('profiles').update({ balance: profile.balance - totalBet }).eq('id', profile.id)
     await syncUser()
 
-    // Animation สุ่มภาพ
     const interval = setInterval(() => {
       setResult([
         ANIMALS[Math.floor(Math.random()*6)].label,
@@ -77,7 +74,7 @@ export default function FishPrawnCrab() {
 
     setTimeout(async () => {
       clearInterval(interval)
-      stopEffect(shakeSnd) // ✅ หยุดเสียงเขย่าทันทีเมื่อผลออก
+      stopEffect(shakeSnd)
 
       const finalResult = [
         ANIMALS[Math.floor(Math.random()*6)].label,
@@ -98,21 +95,20 @@ export default function FishPrawnCrab() {
     if (betAnimal && betValue) {
       const count = res.filter(a => a === betAnimal).length
       if (count > 0) {
-        winAmount = betValue + (betValue * count) // คืนทุน + กำไรตามจำนวนตัวที่ออก
+        winAmount = betValue + (betValue * count) 
       }
     }
 
     if (winAmount > 0) {
       const { data: curr } = await supabase.from('profiles').select('balance').eq('id', profile!.id).single()
       await supabase.from('profiles').update({ balance: (curr?.balance || 0) + winAmount }).eq('id', profile!.id)
-      setResultMsg({ text: `ชนะ! +$${winAmount}`, color: 'text-green-400' })
+      setResultMsg({ text: `ชนะ! +$${winAmount.toLocaleString()}`, color: 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.8)]' })
       playEffect(winSnd)
     } else {
-      setResultMsg({ text: 'แพ้! เสียใจด้วยนะ', color: 'text-red-500' })
+      setResultMsg({ text: 'แพ้! เสียใจด้วยนะ', color: 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]' })
       playEffect(loseSnd)
     }
 
-    // บันทึกลง Log
     await supabase.from('game_logs').insert([{
       user_id: profile!.id,
       game_name: 'Fish Prawn Crab',
@@ -123,40 +119,54 @@ export default function FishPrawnCrab() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#0d1117] text-white font-['Google_Sans'] overflow-hidden select-none">
+    <div 
+      className="flex flex-col lg:flex-row min-h-screen w-full bg-slate-950 text-white font-['Google_Sans'] overflow-x-hidden bg-cover bg-center bg-fixed select-none"
+      style={{ backgroundImage: "url('https://iili.io/qZ3dyUg.png')" }}
+    >
       
-      <div className="flex-1 flex flex-col items-center p-6 relative">
-        <h1 className="text-6xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-8 uppercase tracking-tighter">น้ำเต้าปูปลามหาสนุก</h1>
+      {/* Main Play Area */}
+      <div className="flex-1 flex flex-col items-center p-4 md:p-8 lg:p-12 relative overflow-y-auto">
+        <h1 className="text-4xl md:text-6xl lg:text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-6 md:mb-10 uppercase tracking-tighter drop-shadow-lg font-['Fahkwang']">
+          น้ำเต้าปูปลามหาสนุก
+        </h1>
 
         {/* 🎲 RESULT PANEL */}
-        <div className="bg-black/60 border-[10px] border-yellow-900/40 rounded-[4rem] p-10 shadow-2xl backdrop-blur-md flex flex-col items-center gap-6 mb-8 w-full max-w-2xl">
-          <div className="flex gap-6">
+        <div className="bg-black/80 border-[4px] md:border-[8px] border-yellow-900/50 rounded-[2rem] md:rounded-[4rem] p-6 md:p-10 shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-md flex flex-col items-center gap-4 md:gap-8 mb-6 md:mb-10 w-full max-w-2xl relative">
+          
+          {isRolling && <div className="absolute inset-0 bg-yellow-500/10 rounded-[2rem] md:rounded-[4rem] animate-pulse"></div>}
+
+          <div className="flex gap-3 md:gap-6 relative z-10">
             {result.map((animalLabel, i) => {
               const animal = ANIMALS.find(a => a.label === animalLabel)
               return (
-                <div key={i} className={`w-32 h-32 bg-white rounded-[2.5rem] flex flex-col items-center justify-center shadow-[0_10px_0_#ddd] border-b-8 border-gray-300 ${isRolling ? 'animate-bounce' : ''}`}>
-                  <span className="text-6xl">{animal?.icon}</span>
-                  <span className="text-black font-black text-sm mt-1">{animal?.label}</span>
+                <div key={i} className={`w-20 h-20 md:w-32 md:h-32 bg-gradient-to-b from-white to-gray-200 rounded-2xl md:rounded-[2.5rem] flex flex-col items-center justify-center shadow-[0_6px_0_#9ca3af] md:shadow-[0_10px_0_#9ca3af] border-b-4 md:border-b-8 border-gray-400 ${isRolling ? 'animate-bounce' : ''}`}>
+                  <span className="text-4xl md:text-6xl">{animal?.icon}</span>
+                  <span className="text-black font-black text-[10px] md:text-sm mt-1">{animal?.label}</span>
                 </div>
               )
             })}
           </div>
-          <div className="text-2xl font-black text-yellow-500 tracking-[0.4em] uppercase drop-shadow-md">
+          <div className="text-xl md:text-3xl font-black text-yellow-400 tracking-[0.2em] md:tracking-[0.4em] uppercase drop-shadow-[0_0_10px_rgba(250,204,21,0.5)] z-10 mt-2">
             {isRolling ? 'กำลังเขย่า...' : 'ผลที่ออก'}
           </div>
         </div>
 
         {/* 📋 BETTING BOARD */}
-        <div className="grid grid-cols-3 gap-6 w-full max-w-3xl flex-1 max-h-[380px]">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 w-full max-w-3xl flex-1 mb-6">
           {ANIMALS.map(animal => (
-            <div key={animal.id} onClick={() => placeBet(animal.label)} className={`${animal.color} rounded-[3rem] border-2 ${bets[animal.label] ? 'border-yellow-500 scale-105 shadow-[0_0_20px_rgba(234,179,8,0.3)]' : 'border-white/10'} p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-all relative overflow-hidden group`}>
-              <span className="text-6xl group-hover:scale-110 transition-transform">{animal.icon}</span>
-              <span className="text-xl font-black mt-2 text-gray-300 group-hover:text-white">{animal.label}</span>
+            <div 
+              key={animal.id} 
+              onClick={() => placeBet(animal.label)} 
+              className={`${animal.color} rounded-2xl md:rounded-[3rem] border-2 ${bets[animal.label] ? 'border-yellow-400 scale-105 bg-white/10' : 'border-white/10'} p-4 flex flex-col items-center justify-center cursor-pointer hover:scale-[1.03] transition-all duration-300 relative overflow-hidden group min-h-[100px] md:min-h-[140px] shadow-lg`}
+              style={bets[animal.label] ? { boxShadow: `0 0 25px ${animal.shadow}` } : {}}
+            >
+              <span className="text-4xl md:text-6xl group-hover:scale-110 transition-transform drop-shadow-md">{animal.icon}</span>
+              <span className="text-sm md:text-xl font-black mt-2 text-gray-300 group-hover:text-white drop-shadow-md">{animal.label}</span>
               
               {bets[animal.label] && (
-                <div className="absolute inset-0 bg-yellow-500/20 flex items-center justify-center backdrop-blur-[1px]">
-                  <div className="bg-yellow-500 text-black px-5 py-1.5 rounded-full font-black text-xl border-2 border-black animate-in zoom-in duration-200 shadow-2xl">
-                    ${bets[animal.label]}
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[2px]">
+                  <div className="bg-gradient-to-b from-yellow-300 to-yellow-600 text-black px-3 py-1 md:px-5 md:py-1.5 rounded-full font-black text-sm md:text-xl border border-yellow-200 animate-in zoom-in duration-200 shadow-[0_0_15px_rgba(250,204,21,0.8)]">
+                    ${bets[animal.label].toLocaleString()}
                   </div>
                 </div>
               )}
@@ -165,39 +175,49 @@ export default function FishPrawnCrab() {
         </div>
 
         {/* 🎛️ CONTROL BOX */}
-        <div className="w-full max-w-2xl bg-black/90 p-6 rounded-[3rem] border border-white/10 mt-6 shadow-2xl flex flex-col gap-5">
-          {resultMsg.text && <div className={`text-3xl font-black text-center animate-pulse ${resultMsg.color}`}>{resultMsg.text}</div>}
+        <div className="w-full max-w-3xl bg-black/90 p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.9)] backdrop-blur-xl flex flex-col gap-5 md:gap-6">
+          {resultMsg.text && (
+            <div className={`text-xl md:text-3xl font-black text-center animate-in zoom-in duration-300 ${resultMsg.color}`}>
+              {resultMsg.text}
+            </div>
+          )}
           
-          <div className="flex justify-between items-center px-4">
-             <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-2">
+             <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full md:w-auto">
                 {[10, 100, 500, 1000].map(val => (
-                  <button key={val} onClick={() => setCurrentChip(val)} className={`px-5 py-2 rounded-xl font-black transition-all ${currentChip === val ? 'bg-yellow-500 text-black scale-110 shadow-lg' : 'bg-white/5 text-gray-500 hover:text-gray-300'}`}>
+                  <button key={val} onClick={() => setCurrentChip(val)} className={`px-4 md:px-6 py-2 md:py-3 rounded-full font-black text-sm md:text-base transition-all duration-300 ${currentChip === val ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black scale-110 shadow-[0_0_15px_rgba(250,204,21,0.6)]' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}>
                     ${val}
                   </button>
                 ))}
              </div>
-             <button onClick={() => setBets({})} className="text-red-500 font-bold hover:text-red-400 uppercase text-xs tracking-widest transition-colors">ล้างเดิมพัน</button>
+             <button onClick={() => setBets({})} className="text-red-400 font-bold hover:text-red-300 uppercase text-xs md:text-sm bg-red-950/30 px-4 py-2 rounded-full border border-red-900/50 transition-colors">
+               ล้างเดิมพัน
+             </button>
           </div>
 
-          <button onClick={rollDice} disabled={isRolling} className="w-full py-5 bg-white text-black font-black rounded-full text-2xl hover:bg-yellow-500 transition-all shadow-xl active:scale-95 disabled:opacity-30">
-            {isRolling ? 'กำลังเขย่า...' : 'เริ่มเลอ'}
+          <button onClick={rollDice} disabled={isRolling} className={`w-full py-4 md:py-6 font-black rounded-full text-xl md:text-2xl tracking-[0.1em] uppercase shadow-2xl transition-all duration-300 active:scale-95 ${isRolling ? 'bg-gray-800 text-gray-500 cursor-not-allowed border-none' : 'bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-black hover:from-yellow-300 hover:to-yellow-500 shadow-[0_0_30px_rgba(250,204,21,0.4)]'}`}>
+            {isRolling ? 'กำลังเขย่า...' : 'เริ่มเลอ !'}
           </button>
         </div>
       </div>
 
-      {/* 📜 SIDEBAR (No Scroll) */}
-      <div className="w-80 bg-black/85 border-l border-white/10 p-10 flex flex-col justify-between shadow-2xl shrink-0">
-        <div className="space-y-8">
-          <h3 className="text-yellow-500 font-black italic text-3xl border-b-2 border-white/10 pb-4 uppercase tracking-tighter">กติกา</h3>
-          <div className="space-y-6 text-lg font-bold text-gray-400">
-            <p><span className="text-yellow-500">• วิธีเล่น:</span> เลือกสัตว์ที่ต้องการ 1 ชนิดต่อรอบ</p>
-            <p><span className="text-white">• ถูก 1 ตัว:</span> จ่าย 1 เท่า</p>
-            <p><span className="text-white">• ถูก 2 ตัว:</span> จ่าย 2 เท่า</p>
-            <p><span className="text-white">• ถูก 3 ตัว:</span> จ่าย 3 เท่า</p>
-            <p className="text-sm text-gray-600 italic mt-8">* ทุกยอดชนะรวมทุนคืนแล้ว</p>
+      {/* 📜 SIDEBAR */}
+      <div className="w-full lg:w-80 bg-black/85 lg:border-l border-t lg:border-t-0 border-white/10 p-6 md:p-8 flex flex-col justify-between shadow-2xl shrink-0 backdrop-blur-md z-20">
+        <div className="space-y-6 md:space-y-8">
+          <h3 className="text-yellow-500 font-black italic text-xl md:text-3xl border-b-2 border-white/10 pb-3 md:pb-4 uppercase tracking-tighter flex items-center gap-2">
+            <span>ℹ️</span> กติกา
+          </h3>
+          <div className="space-y-4 md:space-y-6 text-sm md:text-base font-bold text-gray-400">
+            <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-yellow-500 block mb-1">• วิธีเล่น:</span> เลือกสัตว์ที่ต้องการ 1 ชนิดต่อรอบ</div>
+            <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-white block mb-1">• ถูก 1 ตัว:</span> จ่าย 1 เท่า</div>
+            <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-white block mb-1">• ถูก 2 ตัว:</span> จ่าย 2 เท่า</div>
+            <div className="bg-white/5 p-3 rounded-xl border border-white/5"><span className="text-white block mb-1">• ถูก 3 ตัว:</span> จ่าย 3 เท่า</div>
+            <p className="text-[10px] md:text-xs text-gray-500 italic mt-4 md:mt-8 text-center">* ทุกยอดชนะรวมทุนคืนแล้ว</p>
           </div>
         </div>
-        <div className="text-center opacity-10 text-[9px] tracking-[0.6em] font-black uppercase">Stellar Engine v2.1</div>
+        <div className="mt-6 md:mt-0 pt-6 md:pt-0 text-center text-gray-600 text-[10px] tracking-[0.4em] font-black uppercase">
+          Stellar Engine v2.1
+        </div>
       </div>
     </div>
   )
