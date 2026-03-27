@@ -7,7 +7,7 @@ import { useUser } from '@/lib/UserContext'
 const ANIMALS = [
   { id: 'VAMPIRE',   label: 'แวมไพร์', icon: '🧛', color: 'bg-gradient-to-br from-red-950/60    to-black border-red-500/50    hover:border-red-400',    shadow: 'rgba(239,68,68,0.5)'   },
   { id: 'MERMAID',   label: 'เงือก',   icon: '🧜', color: 'bg-gradient-to-br from-cyan-900/60   to-black border-cyan-500/50   hover:border-cyan-400',   shadow: 'rgba(6,182,212,0.5)'   },
-  { id: 'BUTTERFLY', label: 'ผีเสื้อ', icon: '🦋', color: 'bg-gradient-to-br from-purple-900/60 to-black border-purple-500/50 hover:border-purple-400', shadow: 'rgba(168,85,247,0.5)' },
+  { id: 'BUTTERFLY', label: 'แฟรี่', icon: '🦋', color: 'bg-gradient-to-br from-purple-900/60 to-black border-purple-500/50 hover:border-purple-400', shadow: 'rgba(168,85,247,0.5)' },
   { id: 'WEREWOLF',  label: 'หมาป่า',  icon: '🐺', color: 'bg-gradient-to-br from-slate-800/60  to-black border-slate-500/50  hover:border-slate-300',   shadow: 'rgba(148,163,184,0.5)' },
   { id: 'SWORD',     label: 'มนุษย์',     icon: '⚔️', color: 'bg-gradient-to-br from-yellow-900/60 to-black border-yellow-500/50 hover:border-yellow-400', shadow: 'rgba(234,179,8,0.5)'  },
   { id: 'WITCH',     label: 'แม่มด',   icon: '🧙', color: 'bg-gradient-to-br from-green-900/60  to-black border-green-500/50  hover:border-green-400',  shadow: 'rgba(34,197,94,0.5)'  },
