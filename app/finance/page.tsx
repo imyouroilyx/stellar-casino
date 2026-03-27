@@ -67,7 +67,7 @@ export default function FinancePage() {
                   <span className="text-xl font-bold text-gray-300 tracking-tight">$ {(profile.balance - (parseFloat(amount) || 0)).toLocaleString()}</span>
                 </div>
                 <button type="submit" disabled={loading} className="flex-[2] bg-white text-black font-black py-6 rounded-full text-sm uppercase tracking-widest hover:bg-yellow-500 transition-all shadow-2xl active:scale-95 disabled:opacity-50">
-                  {loading ? 'PROCESSING...' : 'CONFIRM WITHDRAWAL'}
+                  {loading ? 'กำลังดำเนินการ...' : 'ยืนยันการถอนเงิน'}
                 </button>
               </div>
             </form>
@@ -79,7 +79,7 @@ export default function FinancePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           {/* LEFT: FINANCIAL LOGS */}
           <section className="bg-[#080808] border border-gray-900 rounded-[2.5rem] p-10 shadow-xl flex flex-col h-[650px]">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mb-8 border-l-4 border-yellow-500 pl-5 leading-none">Financial Activity</h3>
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mb-8 border-l-4 border-yellow-500 pl-5 leading-none">ประวัติการเงิน</h3>
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
               {financeLogs.length > 0 ? financeLogs.map((log: any) => {
                 // ✅ เพิ่ม 'หักเงินโดยแอดมิน' เป็นสีแดง
@@ -111,7 +111,7 @@ export default function FinancePage() {
 
           {/* RIGHT: BETTING LOGS */}
           <section className="bg-[#080808] border border-gray-900 rounded-[2.5rem] p-10 shadow-xl flex flex-col h-[650px]">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mb-8 border-l-4 border-blue-500 pl-5 leading-none">Betting Records</h3>
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] mb-8 border-l-4 border-blue-500 pl-5 leading-none">ประวัติการเดิมพัน</h3>
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
               {bettingLogs.length > 0 ? bettingLogs.map((log: any) => (
                 <div key={log.id} className="flex justify-between items-center p-5 rounded-[1.8rem] bg-black/40 border border-gray-900 hover:border-gray-700 transition">
@@ -142,21 +142,21 @@ export default function FinancePage() {
           <div className="w-full max-w-[420px] bg-white text-black rounded-[3.5rem] overflow-hidden shadow-[0_0_100px_rgba(255,255,255,0.2)]">
             <div className="bg-[#0c0c0c] text-white p-12 text-center relative overflow-hidden">
                <img src="https://iili.io/qQNVmS1.png" className="w-16 h-16 mx-auto mb-6 relative z-10 animate-pulse" alt="Logo" />
-               <h3 className="text-xl font-black tracking-widest uppercase relative z-10">RECEIPT</h3>
-               <p className="text-[9px] opacity-40 uppercase tracking-[0.5em] mt-3 relative z-10">Withdrawal Confirmation</p>
+               <h3 className="text-xl font-black tracking-widest uppercase relative z-10">ทำรายการถอนเงิน</h3>
+               <p className="text-[9px] opacity-40 uppercase tracking-[0.5em] mt-3 relative z-10">ยืนยันการถอนเงิน</p>
                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top,_#444_0%,_#000_100%)] opacity-80"></div>
             </div>
             <div className="p-10 space-y-8">
               <div className="text-center border-b-2 border-dashed border-gray-100 pb-8">
-                 <span className="text-gray-400 text-[10px] uppercase tracking-[0.2em] block mb-3 font-bold">Total Amount Deducted</span>
+                 <span className="text-gray-400 text-[10px] uppercase tracking-[0.2em] block mb-3 font-bold">จำนวนถอน</span>
                  <h2 className="text-6xl font-black text-black tracking-tighter">$ {lastTx.amount.toLocaleString()}</h2>
               </div>
               <div className="space-y-4 text-xs font-bold uppercase tracking-tight">
-                 <div className="flex justify-between items-center"><span className="text-gray-400">Date/Time:</span><span>{new Date(lastTx.created_at).toLocaleString('th-TH')}</span></div>
-                 <div className="flex justify-between items-center"><span className="text-gray-400">Status:</span><span className="text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full">Pending Approval</span></div>
+                 <div className="flex justify-between items-center"><span className="text-gray-400">วันที่/เวลา:</span><span>{new Date(lastTx.created_at).toLocaleString('th-TH')}</span></div>
+                 <div className="flex justify-between items-center"><span className="text-gray-400">สถานะ:</span><span className="text-yellow-600 bg-yellow-50 px-3 py-1 rounded-full">รอการยืนยัน</span></div>
               </div>
               <button onClick={() => setShowSlip(false)} className="w-full bg-black text-white font-black py-6 rounded-2xl text-[10px] uppercase tracking-[0.3em] hover:bg-gray-800 transition shadow-2xl active:scale-95">
-                Close Slip
+                ปิดรายการ
               </button>
             </div>
           </div>
