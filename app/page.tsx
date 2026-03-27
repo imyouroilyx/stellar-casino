@@ -237,11 +237,18 @@ export default function HomePage() {
       </section>
 
       {/* ─── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="font-['Fahkwang'] text-center text-gray-700 uppercase tracking-[0.4em] sm:tracking-[0.5em]
-                         border-t border-gray-900 bg-[#050505]
-                         p-6 sm:p-8 md:p-10 lg:p-12
-                         text-[9px] sm:text-[10px] md:text-[11px]">
-        © 2026 Stellar Paradise. Official Global Provider for RoleplayTH.com
+      <footer className="border-t border-gray-900 bg-[#050505] p-6 sm:p-8 md:p-10 lg:p-12 flex flex-col items-center justify-center gap-5">
+        
+        {/* Warning Message */}
+        <div className="font-['Google_Sans'] text-[10px] sm:text-xs text-red-500/80 bg-red-900/10 border border-red-900/30 px-5 py-2.5 rounded-full font-bold tracking-widest text-center shadow-inner">
+          ⚠️ เว็บไซต์นี้จัดทำขึ้นเพื่อความบันเทิงเท่านั้น ไม่สนับสนุนการเล่นการพนันด้วยเงินจริงในทุกรูปแบบ
+        </div>
+
+        {/* Copyright */}
+        <div className="font-['Fahkwang'] text-center text-gray-700 uppercase tracking-[0.4em] sm:tracking-[0.5em] text-[9px] sm:text-[10px] md:text-[11px]">
+          © 2026 Stellar Paradise. Official Global Provider for RoleplayTH.com
+        </div>
+
       </footer>
     </div>
   )
