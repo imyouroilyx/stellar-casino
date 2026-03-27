@@ -127,7 +127,7 @@ export default function FishPrawnCrab() {
       {/* Main Play Area */}
       <div className="flex-1 flex flex-col items-center p-4 md:p-8 lg:p-12 relative overflow-y-auto">
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 mb-6 md:mb-10 uppercase tracking-tighter drop-shadow-lg font-['Fahkwang']">
-          น้ำเต้าปูปลามหาสนุก
+          Fish Prawn Crab
         </h1>
 
         {/* 🎲 RESULT PANEL */}
