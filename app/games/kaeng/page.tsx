@@ -48,7 +48,6 @@ const checkCanFlow = (hand: Card[], topDiscard: Card | undefined) => {
   return hand.some(c => c.value === topDiscard.value)
 }
 
-// AI เลือกลงไพ่: ทิ้งไพ่แต้มสูงสุดเสมอ
 function aiChooseDiscard(hand: Card[]): number {
   let maxIdx = 0
   for (let i = 1; i < hand.length; i++)
@@ -56,12 +55,11 @@ function aiChooseDiscard(hand: Card[]): number {
   return maxIdx
 }
 
-// AI ตัดสินใจแคง: ใช้ความน่าจะเป็น (ไม่แอบดูไพ่ผู้เล่นอื่น)
 const aiShouldDeclare = (hand: Card[]) => {
   const score = handScore(hand)
-  if (score <= 5) return true                // แต้ม 1-5 แคงชัวร์ 100%
-  if (score <= 10) return Math.random() < 0.7 // แต้ม 6-10 โอกาสแคง 70%
-  if (score <= 15) return Math.random() < 0.2 // แต้ม 11-15 โอกาสแคง 20% (วัดดวง)
+  if (score <= 5) return true               
+  if (score <= 10) return Math.random() < 0.7 
+  if (score <= 15) return Math.random() < 0.2 
   return false
 }
 
@@ -116,6 +114,7 @@ export default function KaengSingle() {
   const [currentTurn,    setCurrentTurn]    = useState(0)
   const [selectedCard,   setSelectedCard]   = useState<number|null>(null)
   const [canFlow,        setCanFlow]        = useState(false)
+  const [hasDrawn,       setHasDrawn]       = useState(false) // ตัวแปลใหม่ไว้จำว่าจั่วไพ่ไปหรือยัง
   const [winnerIdx,      setWinnerIdx]      = useState<number|null>(null)
   const [resultMsg,      setResultMsg]      = useState('')
   const [log,            setLog]            = useState<string[]>([])
@@ -159,6 +158,7 @@ export default function KaengSingle() {
     setCurrentTurn(0)
     setSelectedCard(null)
     setCanFlow(false)
+    setHasDrawn(false)
     setWinnerIdx(null)
     setResultMsg('')
     setLog([])
@@ -238,9 +238,11 @@ export default function KaengSingle() {
 
     await new Promise(r => setTimeout(r, 700))
 
+    // 1. เช็กไหล/ตบ ก่อนแคง
     const slapAiCards = top ? ai.hand.filter(c => c.value === top.value) : []
     const isAiSlapping = slapAiCards.length >= 2
     const flowIdx = ai.hand.findIndex(c => c.value === top?.value)
+    
     if (top && flowIdx !== -1) {
       const newHand = isAiSlapping
         ? ai.hand.filter(c => c.value !== top.value)
@@ -250,7 +252,6 @@ export default function KaengSingle() {
         : [...dp, ai.hand[flowIdx]]
       const label = isAiSlapping ? `ตบ! ${slapAiCards.length} ใบ` : 'ไหล'
       
-      // เช็ก AI โง่ (น็อคเพราะไหล)
       if (newHand.length === 0) {
         play('boo')
         setSlapNotice('โง่!')
@@ -274,6 +275,13 @@ export default function KaengSingle() {
       return
     }
 
+    // 2. ถ้าไม่ไหล เช็กแคงก่อนจั่ว
+    if (aiShouldDeclare(ai.hand)) {
+      addLog(`${ai.name} ประกาศ แคง! (${handScore(ai.hand)} แต้ม)`)
+      return endGame(ps, dk, dp, turnIdx, 'KAENG')
+    }
+
+    // 3. จั่วไพ่
     if (dk.length === 0) { endGame(ps, dk, dp, -1, 'KAENG'); return }
     const drawn = dk[0]
     const newDk = dk.slice(1)
@@ -281,12 +289,7 @@ export default function KaengSingle() {
     const newHand = [...ai.hand, drawn]
     addLog(`${ai.name} จั่วไพ่`)
 
-    if (aiShouldDeclare(newHand)) {
-      const newPs = ps.map((p,i) => i===turnIdx ? {...p, hand:newHand, score:handScore(newHand)} : p)
-      addLog(`${ai.name} ประกาศ แคง! (${handScore(newHand)} แต้ม)`)
-      return endGame(newPs, newDk, dp, turnIdx, 'KAENG')
-    }
-
+    // 4. ทิ้งไพ่
     const discardIdx = aiChooseDiscard(newHand)
     const discarded  = newHand[discardIdx]
     const finalHand  = newHand.filter((_,i) => i !== discardIdx)
@@ -306,7 +309,7 @@ export default function KaengSingle() {
 
   // ── Human: ไหลไพ่ ─────────────────────────────────────────────────────
   const humanFlow = () => {
-    if (!canFlow || isAnimating) return
+    if (!canFlow || isAnimating || hasDrawn) return
     const top = discardPile[discardPile.length - 1]
     if (!top) return
     const p = players[0]
@@ -324,11 +327,10 @@ export default function KaengSingle() {
       : [...discardPile, p.hand[flowIdx]]
     const actionLabel = isSlapping ? `ตบ! ${slapCards.length} ใบ` : 'ไหล'
     
-    // เช็กผู้เล่นโง่ (น็อคเพราะไหล)
     if (newHand.length === 0) {
       play('boo')
       setSlapNotice('โง่!')
-      addLog(`AI สม โง่! คุณ${actionLabel}จนน็อค`) // คนก่อนหน้าคุณคือ AI สม (index 3)
+      addLog(`AI สม โง่! คุณ${actionLabel}จนน็อค`) 
       
       const newPs = players.map((pl,i) => i===0 ? {...pl, hand:newHand, score:0} : pl)
       endGame(newPs, deck, newDp, 0, 'KNOCK')
@@ -347,7 +349,7 @@ export default function KaengSingle() {
 
   // ── Human: จั่วไพ่ ────────────────────────────────────────────────────
   const humanDraw = () => {
-    if (isAnimating || currentTurn !== 0) return
+    if (isAnimating || currentTurn !== 0 || hasDrawn) return
     if (deck.length === 0) return endGame(players, deck, discardPile, -1, 'KAENG')
     
     play('flip')
@@ -357,19 +359,18 @@ export default function KaengSingle() {
     const newPs  = players.map((p,i) => i===0 ? {...p, hand:newHand, score:handScore(newHand)} : p)
     const sortedPs = newPs.map((p,i) => i===0 ? {...p, hand:sortHand(p.hand)} : p)
     setPlayers(sortedPs); setDeck(newDk); setSelectedCard(null)
+    setHasDrawn(true) // มาร์คไว้ว่าเราจั่วไพ่แล้ว
     addLog(`คุณจั่ว ${drawn.value}${drawn.suit}`)
   }
 
   const humanSelectCard = (idx: number) => {
-    if (isAnimating || currentTurn !== 0) return
-    if (players[0].hand.length !== 6) return
+    if (isAnimating || currentTurn !== 0 || !hasDrawn) return
     setSelectedCard(idx === selectedCard ? null : idx)
   }
 
   const humanDiscard = () => {
-    if (selectedCard === null || isAnimating) return
+    if (selectedCard === null || isAnimating || !hasDrawn) return
     const p = players[0]
-    if (p.hand.length !== 6) return
     play('flip')
     const discarded = p.hand[selectedCard]
     const newHand   = p.hand.filter((_,i) => i !== selectedCard)
@@ -378,20 +379,21 @@ export default function KaengSingle() {
 
     const newPs = players.map((pl,i) => i===0 ? {...pl, hand:newHand, score:handScore(newHand)} : pl)
     setPlayers(newPs); setDiscardPile(newDp); setSelectedCard(null)
+    setHasDrawn(false) // จบตา เคลียร์สถานะการจั่ว
     const next = 1
     setCurrentTurn(next)
     setTimeout(() => doAiTurn(next, newPs, deck, newDp), 200)
   }
 
   const humanDeclareKaeng = () => {
-    if (isAnimating || currentTurn !== 0 || players[0].hand.length !== 5) return
+    if (isAnimating || currentTurn !== 0 || hasDrawn) return // ถ้าจั่วไพ่แล้วจะแคงไม่ได้
     addLog(`คุณประกาศ แคง! (${players[0].score} แต้ม)`)
     endGame(players, deck, discardPile, 0, 'KAENG')
   }
 
   const humanP    = players[0]
-  const mustDiscard = humanP?.hand.length === 6
-  const canDeclare  = humanP?.hand.length === 5 && currentTurn === 0 && phase === 'PLAYING'
+  const mustDiscard = hasDrawn // ต้องทิ้งไพ่เสมอถ้าเรากดจั่วแล้ว
+  const canDeclare  = !hasDrawn && currentTurn === 0 && phase === 'PLAYING'
 
   return (
     <div className="flex min-h-screen w-full bg-[#080b12] text-white font-['Google_Sans'] overflow-y-auto"
