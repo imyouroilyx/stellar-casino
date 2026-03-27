@@ -4,28 +4,48 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
-// ✅ 20 ช่อง โดยมี JACKPOT 2 ช่อง
+// ✅ 40 ช่อง แจ็กพ็อต 1 ช่อง (ปรับตัวคูณให้สมดุล RTP ~ 90%)
 const PRIZES = [
+  { label: 'JACKPOT', multiplier: 20, color: '#D97706' }, // 0
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x2', multiplier: 2, color: '#1E3A8A' },
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x1', multiplier: 1, color: '#1E3A8A' },
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'JACKPOT', multiplier: 50, color: '#D97706' }, // 🏆 Jackpot 1
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 4
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x5', multiplier: 5, color: '#6D28D9' },
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x2', multiplier: 2, color: '#1E3A8A' },
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x10', multiplier: 10, color: '#DB2777' },
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 8
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x1', multiplier: 1, color: '#1E3A8A' },
+  { label: 'x2', multiplier: 2, color: '#4F46E5' }, // 10
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'JACKPOT', multiplier: 50, color: '#D97706' }, // 🏆 Jackpot 2
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x3', multiplier: 3, color: '#4F46E5' },
   { label: 'x0', multiplier: 0, color: '#0A0F24' },
-  { label: 'x1', multiplier: 1, color: '#1E3A8A' }
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 14
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 18
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x5', multiplier: 5, color: '#DB2777' }, // 20
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 24
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 28
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x2', multiplier: 2, color: '#4F46E5' }, // 30
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x1', multiplier: 1, color: '#1E3A8A' }, // 34
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' },
+  { label: 'x0', multiplier: 0, color: '#0A0F24' } // 39
 ]
 
 export default function LuckyWheel() {
@@ -39,7 +59,6 @@ export default function LuckyWheel() {
   const winSnd = useRef<HTMLAudioElement | null>(null)
   const loseSnd = useRef<HTMLAudioElement | null>(null)
 
-  // ใช้ Ref จัดการการหมุนเพื่อไม่ให้ React ต้อง Re-render บ่อย ๆ
   const wheelRef = useRef<HTMLDivElement>(null)
   const rotationRef = useRef(0)
   const isIdleRef = useRef(true)
@@ -52,11 +71,9 @@ export default function LuckyWheel() {
     let rAF: number;
     let lastTime = performance.now();
 
-    // ลูปหมุนเอื่อย ๆ ตลอดเวลา
     const loop = (time: number) => {
       if (isIdleRef.current && wheelRef.current) {
         const delta = time - lastTime;
-        // ปรับความเร็วการหมุนตอนรอที่ตัวเลขนี้ (0.02)
         rotationRef.current += 0.02 * delta; 
         wheelRef.current.style.transform = `rotate(${rotationRef.current}deg)`;
       }
@@ -82,7 +99,7 @@ export default function LuckyWheel() {
 
     setSpinning(true)
     setShowWinModal(false)
-    isIdleRef.current = false // หยุดระบบหมุนเอื่อย ๆ ชั่วคราว
+    isIdleRef.current = false 
     playEffect(spinSnd)
 
     try {
@@ -95,13 +112,12 @@ export default function LuckyWheel() {
       const segmentDeg = 360 / PRIZES.length
       const targetDeg = 270 - (prizeIndex * segmentDeg) - (segmentDeg / 2)
       
-      // คำนวณองศาที่จะไปต่อจากตำแหน่งปัจจุบัน
       const currentRot = rotationRef.current
       const currentMod = currentRot % 360
       let degDiff = targetDeg - currentMod
-      if (degDiff <= 0) degDiff += 360 // บังคับให้หมุนไปข้างหน้าเสมอ
+      if (degDiff <= 0) degDiff += 360 
       
-      const extraRounds = 360 * 10 // จำนวนรอบที่หมุนรัว ๆ
+      const extraRounds = 360 * 10 
       const finalRotation = currentRot + extraRounds + degDiff
       
       if (wheelRef.current) {
@@ -138,7 +154,6 @@ export default function LuckyWheel() {
         setShowWinModal(true)
         syncUser()
 
-        // รีเซ็ต transition เพื่อให้กลับไปหมุนเอื่อย ๆ ได้อย่างต่อเนื่อง
         if (wheelRef.current) {
           wheelRef.current.style.transition = 'none'
         }
@@ -169,15 +184,12 @@ export default function LuckyWheel() {
         </div>
 
         <div className="relative flex items-center justify-center w-full my-8">
-          {/* ✅ ลูกศรทางซ้าย ➽ */}
           <div className="absolute left-[-20px] md:left-[-60px] z-30 text-5xl md:text-8xl text-yellow-400 drop-shadow-[0_0_25px_rgba(255,215,0,0.9)] animate-pulse">
             ➽
           </div>
 
-          {/* กรอบวงล้อ (Outer Frame) */}
           <div className="w-[320px] h-[320px] md:w-[550px] md:h-[550px] rounded-full p-3 md:p-5 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center relative">
             
-            {/* วงล้อหมุน (Spinning Content) */}
             <div 
               ref={wheelRef}
               className="w-full h-full rounded-full relative shadow-[inset_0_0_40px_rgba(0,0,0,0.8)] overflow-hidden"
@@ -190,19 +202,19 @@ export default function LuckyWheel() {
                 const isJackpot = p.label === 'JACKPOT';
                 return (
                   <React.Fragment key={i}>
-                    {/* เส้นแบ่งช่อง */}
+                    {/* เส้นแบ่งช่องแบบบางลง สำหรับ 40 ช่อง */}
                     <div 
-                      className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 w-[2px] bg-white/20 origin-bottom z-10"
+                      className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 w-[1px] bg-white/10 origin-bottom z-10"
                       style={{ transform: `rotate(${i * (360 / PRIZES.length)}deg)` }}
                     />
                     
-                    {/* ตัวอักษรรางวัล */}
+                    {/* ปรับขนาดตัวอักษรให้พอดีกับช่อง 9 องศา */}
                     <div 
-                      className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 flex items-start justify-center pt-3 md:pt-8 z-20 origin-bottom"
+                      className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 flex items-start justify-center pt-2 md:pt-4 z-20 origin-bottom"
                       style={{ transform: `rotate(${rot}deg)` }}
                     >
-                      <span className={`font-black uppercase drop-shadow-[0_3px_5px_rgba(0,0,0,0.9)] tracking-wider ${isJackpot ? 'text-yellow-300 text-[10px] md:text-xl animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]' : 'text-white/95 text-[10px] md:text-[15px]'}`}>
-                        {p.label}
+                      <span className={`font-black uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tighter ${isJackpot ? 'text-yellow-300 text-[9px] md:text-[14px] animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]' : 'text-white/95 text-[7px] md:text-[11px]'}`}>
+                        {isJackpot ? 'JP' : p.label}
                       </span>
                     </div>
                   </React.Fragment>
@@ -210,7 +222,6 @@ export default function LuckyWheel() {
               })}
             </div>
 
-            {/* แกนกลางวงล้อ (Center Hub) */}
             <div className="absolute w-16 h-16 md:w-24 md:h-24 bg-gradient-to-br from-gray-800 to-[#0A0F24] rounded-full border-4 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.9)] flex items-center justify-center z-30">
               <div className="w-5 h-5 md:w-8 md:h-8 bg-yellow-400 rounded-full shadow-[0_0_15px_#FCD34D] animate-ping opacity-75"></div>
               <div className="absolute w-3 h-3 md:w-5 md:h-5 bg-white rounded-full"></div>
@@ -219,10 +230,9 @@ export default function LuckyWheel() {
           </div>
         </div>
 
-        {/* แผงควบคุม (Control Panel) */}
         <div className="w-full max-w-md bg-black/80 border border-white/10 p-8 rounded-[3rem] shadow-2xl backdrop-blur-md">
           <div className="flex justify-between items-center mb-8 px-4">
-            <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">ลงเดิมพัน</span>
+            <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">Bet Amount</span>
             <div className="flex items-center space-x-6">
               <button onClick={() => setBet(Math.max(10, bet - 10))} disabled={spinning} className="text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">－</button>
               <div className="flex items-center">
@@ -249,7 +259,6 @@ export default function LuckyWheel() {
         </div>
       </div>
 
-      {/* Modal ชนะรางวัล */}
       {showWinModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
           <div className={`w-full max-w-md bg-[#0a0a0a]/95 border-2 p-12 md:p-16 rounded-[4rem] text-center shadow-[0_0_100px_rgba(0,0,0,1)] animate-in slide-in-from-bottom-20 duration-500 ${winData.amount > 0 ? 'border-yellow-500/50' : 'border-red-900/50'}`}>
