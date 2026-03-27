@@ -10,37 +10,37 @@ export default function HomePage() {
       id: 1, 
       name: 'ไพ่แคง', 
       href: '/games/kaeng', 
-      image: 'https://cdn.britannica.com/95/124395-004-3B484C8B/hand-cards-trump-spades.jpg' // ใส่ URL รูปภาพตรงนี้ครับ
+      image: 'https://iili.io/qtxLJQ1.png' // ใส่ URL รูปภาพตรงนี้ครับ
     },
     { 
       id: 2, 
       name: 'ป๊อกเด้ง', 
       href: '/games/pokdeng', 
-      image: 'https://thaiplayingcard.com/wp-content/uploads/2023/07/%E0%B9%84%E0%B8%9E%E0%B9%88%E0%B8%9B%E0%B9%8A%E0%B8%AD%E0%B8%81%E0%B9%80%E0%B8%94%E0%B9%89%E0%B8%87-%E0%B8%9B%E0%B8%81-2.jpg' // ถ้าเว้นว่างไว้ ระบบจะโชว์ไอคอนสำรองให้เอง
+      image: 'https://iili.io/qtz2Rxs.png' // ถ้าเว้นว่างไว้ ระบบจะโชว์ไอคอนสำรองให้เอง
     },
     { 
       id: 3, 
       name: 'วงล้อเสี่ยงโชค', 
       href: '/games/wheel', 
-      image: 'https://cdn.dribbble.com/userupload/21654402/file/original-98598f1136f0ef47de974c47e8818b15.png?resize=752x&vertical=center' 
+      image: 'https://iili.io/qtzTVae.png' 
     },
     { 
       id: 4, 
       name: 'สล็อตแมชชีน', 
       href: '/games/slot', // เชื่อมไปยังหน้าที่เราสร้างไว้
-      image: 'https://www.egt.com/wp-content/uploads/2025/01/what-is-a-slot-machine.webp' 
+      image: 'https://iili.io/qtzhMKX.png' 
     },
     { 
       id: 5, 
       name: 'ไฮโล', 
       href: '/games/hilo', 
-      image: 'https://static1.squarespace.com/static/52d4acc0e4b086fdf73bb33b/t/54495d52e4b003f5baba3ad6/1414094162931/?format=1500w' 
+      image: 'https://iili.io/qtIzHIR.png' 
     },
     { 
       id: 6, 
       name: 'น้ำเต้าปูปลา', 
       href: '/games/fish-prawn-crab', 
-      image: 'https://i.pinimg.com/736x/d8/01/1b/d8011be5fce755eac289640cc864727d.jpg' 
+      image: 'https://iili.io/qtI0s9V.png' 
     },
   ]
 
