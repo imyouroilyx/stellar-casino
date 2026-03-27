@@ -158,9 +158,6 @@ export default function PokDengMultiplayer() {
   const [room, setRoom] = useState<RoomState | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const roomRef = useRef<RoomState | null>(null)
-  
-  // ป้องกันการยิงคำสั่งออกห้องซ้ำซ้อน
-  const isPenalizingRef = useRef(false)
  
   const snd = useRef<{ flip?: HTMLAudioElement; win?: HTMLAudioElement; lose?: HTMLAudioElement; shuffle?: HTMLAudioElement }>({})
  
@@ -180,6 +177,7 @@ export default function PokDengMultiplayer() {
  
   useEffect(() => { roomRef.current = room }, [room])
  
+  // sync betRaw → betInput
   const handleBetRawChange = (val: string) => {
     setBetRaw(val)
     const n = parseInt(val.replace(/[^0-9]/g, ''))
@@ -198,7 +196,7 @@ export default function PokDengMultiplayer() {
   }
  
   // ─── Fetch Lobby ───────────────────────────────────────────────────────────
-  const fetchLobby = useCallback(async () => {
+  const fetchLobby = async () => {
     const { data } = await supabase
       .from('pokdeng_rooms')
       .select('id, code, players, host_id, profiles!host_id(username)')
@@ -212,7 +210,7 @@ export default function PokDengMultiplayer() {
         hostName: r.profiles?.username ?? 'ไม่ทราบชื่อ',
       })))
     }
-  }, [])
+  }
  
   // ─── Subscribe ────────────────────────────────────────────────────────────
   const subscribeRoom = useCallback((roomId: string) => {
@@ -339,99 +337,22 @@ export default function PokDengMultiplayer() {
     setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM')
   }
  
-  // ─── Leave Room & Flee Logic ───────────────────────────────────────────────
-  const leaveRoom = useCallback(async () => {
-    const currentRoom = roomRef.current
-    if (!currentRoom || !profile) return
+  // ─── Leave Room ────────────────────────────────────────────────────────────
+  const leaveRoom = async () => {
+    if (!room || !profile) return
+    const remaining = room.players.filter(p => p.id !== profile.id)
  
-    if (isPenalizingRef.current) return
-    isPenalizingRef.current = true
- 
-    const remaining = currentRoom.players.filter(p => p.id !== profile.id)
- 
-    // 1. ลงโทษเจ้ามือที่หนีระหว่างเกม (x10 ของเดิมพันทั้งหมด)
-    if (profile.id === currentRoom.bankerId && currentRoom.phase !== 'LOBBY' && currentRoom.phase !== 'RESULT') {
-      const totalBets = currentRoom.players.reduce((sum, p) => p.id !== profile.id ? sum + p.bet : sum, 0)
-      if (totalBets > 0) {
-        const penalty = totalBets * 10
-        const { data: prof } = await supabase.from('profiles').select('balance').eq('id', profile.id).single()
-        if (prof) {
-          await supabase.from('profiles').update({ balance: prof.balance - penalty }).eq('id', profile.id)
-          await supabase.from('game_logs').insert([{
-            user_id: profile.id, game_name: 'PokDeng-Multi',
-            change_amount: -penalty,
-            result: `หนีขณะเป็นเจ้ามือ โดนปรับ x10 (-$${penalty})`
-          }])
-          syncUser()
-        }
-      }
-    }
- 
-    // 2. จัดการห้องเมื่อมีคนออก
-    if (remaining.length === 0) {
-      await supabase.from('pokdeng_rooms').delete().eq('id', currentRoom.id)
+    // ถ้าคนที่ออกคือเจ้ามือปัจจุบัน → ลบห้องออกจาก Supabase ทันที
+    if (profile.id === room.bankerId || remaining.length === 0) {
+      await supabase.from('pokdeng_rooms').delete().eq('id', room.id)
     } else {
-      let nextHostId = currentRoom.hostId
-      let nextBankerId = currentRoom.bankerId
-      let nextPhase = currentRoom.phase
- 
-      // ถ้าเจ้ามือ หรือโฮสต์ออกกลางคัน ให้สุ่มผู้เล่นที่เหลือขึ้นมาแทน และรีเซ็ตกลับไปหน้า LOBBY
-      if (profile.id === currentRoom.bankerId || profile.id === currentRoom.hostId) {
-        const randomPlayer = remaining[Math.floor(Math.random() * remaining.length)]
-        nextHostId = randomPlayer.id
-        nextBankerId = randomPlayer.id
-        nextPhase = 'LOBBY'
-      }
- 
-      const resetPlayers = remaining.map(p => (nextPhase === 'LOBBY' ? { ...p, cards: [], bet: 0, action: 'IDLE' as PlayerAction, result: null, resultDetail: '' } : p))
- 
-      await supabase.from('pokdeng_rooms').update({
-        players: resetPlayers,
-        host_id: nextHostId,
-        banker_id: nextBankerId,
-        phase: nextPhase,
-        banker_action: nextPhase === 'LOBBY' ? 'IDLE' : currentRoom.bankerAction,
-        banker_cards: nextPhase === 'LOBBY' ? [] : currentRoom.bankerCards
-      }).eq('id', currentRoom.id)
+      const newHostId = room.hostId === profile.id ? remaining[0].id : room.hostId
+      await updateRoom({ players: remaining, host_id: newHostId })
     }
  
     channelRef.current && supabase.removeChannel(channelRef.current)
-    setRoom(null)
-    setScreen('LOBBY_LIST')
-    fetchLobby()
- 
-    setTimeout(() => { isPenalizingRef.current = false }, 1000)
-  }, [profile, syncUser, fetchLobby])
- 
-  // ─── Detect Visibility Change & Unload ─────────────────────────────────────
-  useEffect(() => {
-    const handleTabFlee = () => {
-      const currentRoom = roomRef.current
-      if (!currentRoom || !profile) return
-      
-      // ถ้าเป็นเจ้ามือ และเกมกำลังเล่นอยู่ แต่สลับแท็บ/พับจอหนี
-      if (currentRoom.bankerId === profile.id && currentRoom.phase !== 'LOBBY' && currentRoom.phase !== 'RESULT') {
-        if (document.visibilityState === 'hidden') {
-          leaveRoom()
-        }
-      }
-    }
- 
-    const handleUnload = () => {
-      const currentRoom = roomRef.current
-      if (currentRoom && profile && currentRoom.bankerId === profile.id && currentRoom.phase !== 'LOBBY' && currentRoom.phase !== 'RESULT') {
-        leaveRoom()
-      }
-    }
- 
-    document.addEventListener('visibilitychange', handleTabFlee)
-    window.addEventListener('beforeunload', handleUnload)
- 
-    return () => {
-      document.removeEventListener('visibilitychange', handleTabFlee)
-      window.removeEventListener('beforeunload', handleUnload)
-    }
-  }, [profile, leaveRoom])
+    setRoom(null); setScreen('LOBBY_LIST'); fetchLobby()
+  }
  
   // ─── Kick Player (Host only, only in LOBBY phase) ──────────────────────────
   const kickPlayer = async (targetId: string) => {
@@ -700,6 +621,7 @@ export default function PokDengMultiplayer() {
       ...p, cards: [], bet: 0, action: 'IDLE' as PlayerAction, result: null, resultDetail: '',
     }))
     
+    // เปลี่ยนตรงนี้ครับ: ตั้ง phase เป็น LOBBY และอัปเดต host_id ให้ตรงกับ nextBankerId
     await updateRoom({
       phase: 'LOBBY', 
       players: reset, 
@@ -895,10 +817,12 @@ export default function PokDengMultiplayer() {
               {room.bankerCards.length === 0
                 ? <div className="w-20 md:w-24 h-28 md:h-36 border-2 border-white/5 rounded-xl bg-black/20" />
                 : room.bankerCards.map((c, i) => (
+                  // เจ้ามือเห็นไพ่ตัวเอง แต่คนอื่นเห็นเฉพาะตอน BANKER_TURN หรือ RESULT
                   <CardUI key={i} card={c} hidden={!isBanker && room.phase !== 'BANKER_TURN' && room.phase !== 'RESULT'} />
                 ))}
             </div>
  
+            {/* แสดงแต้มเจ้ามือ: เจ้ามือเห็นเสมอ, คนอื่นเห็นตอน BANKER_TURN หรือ RESULT */}
             {room.bankerCards.length > 0 && (isBanker || room.phase === 'BANKER_TURN' || room.phase === 'RESULT') && (
               <ScoreBadge score={calcScore(room.bankerCards)} highlight />
             )}
@@ -924,6 +848,7 @@ export default function PokDengMultiplayer() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {nonBankers.map(p => {
               const isMe = p.id === profile?.id
+              // ผู้เล่นเห็นไพ่ตัวเอง + เห็นไพ่คนอื่นเฉพาะ BANKER_TURN หรือ RESULT
               const showCards = isMe || room.phase === 'BANKER_TURN' || room.phase === 'RESULT'
               const { mult, label } = getHandInfo(p.cards)
               return (
@@ -1016,6 +941,7 @@ export default function PokDengMultiplayer() {
               <div className="flex flex-col gap-4">
                 <p className="text-xs font-black text-gray-500 uppercase tracking-widest text-center">💰 วางเดิมพัน</p>
  
+                {/* input กรอกเองได้ */}
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 font-bold text-sm shrink-0">เดิมพัน</span>
                   <div className="flex-1 relative">
@@ -1258,6 +1184,7 @@ export default function PokDengMultiplayer() {
                 </span>
                 <span className="text-[10px] text-gray-600 font-bold shrink-0">${p.balance.toLocaleString()}</span>
  
+                {/* ปุ่มเตะ: แสดงเฉพาะเจ้ามือ, phase LOBBY, ไม่ใช่ตัวเอง */}
                 {canKick && p.id !== profile?.id && (
                   <button
                     onClick={() => kickPlayer(p.id)}
@@ -1269,6 +1196,7 @@ export default function PokDengMultiplayer() {
               </div>
             ))}
  
+            {/* หมายเหตุปุ่มเตะ */}
             {isBanker && room.phase !== 'LOBBY' && (
               <p className="text-[10px] text-gray-700 font-bold text-center mt-1">
                 (เตะได้เฉพาะช่วงรอในล็อบบี้)
@@ -1306,9 +1234,10 @@ export default function PokDengMultiplayer() {
               <p><span className="text-yellow-500">เซียน:</span> J Q K ×3</p>
               <p><span className="text-yellow-500">ตอง:</span> เลขเดียวกัน 3 ใบ ×5</p>
               <div className="pt-2 mt-2 border-t border-white/5 space-y-1 text-gray-700">
-                <p>🏦 เจ้ามือหนีตอนเล่น โดนปรับ x10</p>
+                <p>🏦 เจ้ามือจั่ว/หยุดเองได้</p>
                 <p>🔄 หมุนเวียนเจ้ามือ</p>
                 <p>👑 เจ้าของห้องควบคุมเกม</p>
+                <p>🚫 เจ้ามือออก = ห้องถูกลบ</p>
               </div>
             </div>
           </div>
