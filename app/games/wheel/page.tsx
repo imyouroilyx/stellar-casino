@@ -4,16 +4,21 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
-// ✅ สร้าง 100 ช่องแบบอัตโนมัติ แจ็กพ็อต 1 ช่อง
-// สัดส่วน: JP x50 (1), x5 (2), x2 (5), x1 (20), โบ๋ x0 (72) -> RTP รวม 90%
+// ✅ สร้างวงล้อ 100 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
 const PRIZES = Array.from({ length: 100 }).map((_, i) => {
-  if (i === 0) return { label: 'JP', multiplier: 50, color: '#D97706' }; // 1 ช่อง
-  if (i === 33 || i === 66) return { label: 'x5', multiplier: 5, color: '#DB2777' }; // 2 ช่อง
-  if (i % 20 === 10) return { label: 'x2', multiplier: 2, color: '#4F46E5' }; // 5 ช่อง
-  if (i % 5 === 0 && i !== 0) return { label: 'x1', multiplier: 1, color: '#1E3A8A' }; // 19 ช่อง
-  if (i === 99) return { label: 'x1', multiplier: 1, color: '#1E3A8A' }; // เติมให้ครบ 20 ช่อง
-  // ช่องที่เหลือเป็น x0 และไม่ใส่ label เพื่อลดความรกของวงล้อ
-  return { label: '', multiplier: 0, color: i % 2 === 0 ? '#0A0F24' : '#111827' };
+  // 1. แจ็กพ็อต 1 ช่อง (ปรับ x30 เพื่อให้ RTP เกมอยู่ที่ 90%)
+  if (i === 0) return { label: 'JP', multiplier: 30, color: '#D97706' };
+  
+  // 2. รางวัล x2 จำนวน 10 ช่อง (แทรกในทุก ๆ 10 ช่อง)
+  if (i % 10 === 5) return { label: 'x2', multiplier: 2, color: '#DB2777' };
+  
+  // 3. รางวัล x1 จำนวน 40 ช่อง (แทรก 4 ตำแหน่ง ในทุก ๆ 10 ช่อง)
+  if (i % 10 === 2 || i % 10 === 4 || i % 10 === 7 || i % 10 === 9) {
+    return { label: 'x1', multiplier: 1, color: '#1E3A8A' };
+  }
+
+  // 4. ที่เหลือ 49 ช่อง เป็น x0
+  return { label: 'x0', multiplier: 0, color: '#0A0F24' };
 });
 
 export default function LuckyWheel() {
@@ -85,11 +90,11 @@ export default function LuckyWheel() {
       let degDiff = targetDeg - currentMod
       if (degDiff <= 0) degDiff += 360 
       
-      const extraRounds = 360 * 10 // หมุน 10 รอบ
+      const extraRounds = 360 * 10 
       const finalRotation = currentRot + extraRounds + degDiff
       
       if (wheelRef.current) {
-        wheelRef.current.style.transition = 'transform 6000ms cubic-bezier(0.1, 0, 0.1, 1)' // เพิ่มเวลาเล็กน้อยเพราะวงล้อละเอียด
+        wheelRef.current.style.transition = 'transform 5000ms cubic-bezier(0.1, 0, 0.1, 1)'
         wheelRef.current.style.transform = `rotate(${finalRotation}deg)`
       }
       rotationRef.current = finalRotation
@@ -102,9 +107,7 @@ export default function LuckyWheel() {
         }
 
         const winAmount = Math.floor(bet * prize.multiplier)
-        const displayLabel = prize.label === '' ? 'โบ๋' : prize.label
-
-        setWinData({ amount: winAmount, label: displayLabel })
+        setWinData({ amount: winAmount, label: prize.label })
 
         if (winAmount > 0) {
           playEffect(winSnd)
@@ -117,8 +120,8 @@ export default function LuckyWheel() {
         await supabase.from('game_logs').insert([{
           user_id: profile.id,
           game_name: 'Stellar Wheel',
-          change_amount: winAmount > 0 ? winAmount : -bet,
-          result: `ได้รางวัล ${displayLabel}`
+          change_amount: winAmount > 0 ? winAmount - bet : -bet,
+          result: `ได้รางวัล ${prize.label}`
         }])
 
         setShowWinModal(true)
@@ -129,7 +132,7 @@ export default function LuckyWheel() {
         }
         isIdleRef.current = true 
 
-      }, 6000)
+      }, 5000)
 
     } catch (err) {
       setSpinning(false)
@@ -150,7 +153,7 @@ export default function LuckyWheel() {
           <h1 className="font-['Fahkwang'] text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 drop-shadow-lg">
             STELLAR WHEEL
           </h1>
-          <p className="text-xl md:text-2xl font-bold text-[#a0b1c3] uppercase tracking-[0.2em] mt-2">หมุนลุ้นโชคแห่งดวงดาว</p>
+          <p className="text-xl md:text-2xl font-bold text-[#a0b1c3] uppercase tracking-[0.2em] mt-2">หมุนลุ้นโชค 1 ใน 100</p>
         </div>
 
         <div className="relative flex items-center justify-center w-full my-8">
@@ -158,7 +161,7 @@ export default function LuckyWheel() {
             ➽
           </div>
 
-          <div className="w-[320px] h-[320px] md:w-[550px] md:h-[550px] rounded-full p-3 md:p-5 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center relative">
+          <div className="w-[320px] h-[320px] md:w-[550px] md:h-[550px] rounded-full p-2 md:p-4 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center relative">
             
             <div 
               ref={wheelRef}
@@ -172,23 +175,16 @@ export default function LuckyWheel() {
                 const isJackpot = p.label === 'JP';
                 return (
                   <React.Fragment key={i}>
-                    {/* เส้นแบ่งช่องแบบบางและจางลงมาก ๆ สำหรับ 100 ช่อง */}
+                    {/* เอาเส้นแบ่งช่องออก เพราะ 100 ช่องเส้นจะทึบจนบังสีพื้นหลัง */}
                     <div 
-                      className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 w-[1px] bg-white/5 origin-bottom z-10"
-                      style={{ transform: `rotate(${i * (360 / PRIZES.length)}deg)` }}
-                    />
-                    
-                    {/* แสดงตัวอักษรเฉพาะช่องที่มีรางวัล */}
-                    {p.label && (
-                      <div 
-                        className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 flex items-start justify-center pt-1 md:pt-2 z-20 origin-bottom"
-                        style={{ transform: `rotate(${rot}deg)` }}
-                      >
-                        <span className={`font-black uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tighter ${isJackpot ? 'text-yellow-300 text-[8px] md:text-[12px] animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]' : 'text-white/95 text-[6px] md:text-[9px]'}`}>
-                          {p.label}
-                        </span>
+                      className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 flex items-start justify-center pt-1 md:pt-3 z-20 origin-bottom"
+                      style={{ transform: `rotate(${rot}deg)` }}
+                    >
+                      {/* ใช้เทคนิค Scale ย่อขนาดฟอนต์แทน เพื่อให้ตัวหนังสือเล็กมาก ๆ แต่อ่านได้ */}
+                      <div className={`font-black uppercase tracking-tighter origin-top ${isJackpot ? 'text-yellow-300 text-[10px] md:text-sm animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]' : 'text-white/60 text-[10px] scale-[0.35] md:scale-[0.5]'}`}>
+                        {p.label}
                       </div>
-                    )}
+                    </div>
                   </React.Fragment>
                 );
               })}
@@ -204,7 +200,7 @@ export default function LuckyWheel() {
 
         <div className="w-full max-w-md bg-black/80 border border-white/10 p-8 rounded-[3rem] shadow-2xl backdrop-blur-md">
           <div className="flex justify-between items-center mb-8 px-4">
-            <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">เงินเดิมพัน</span>
+            <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">Bet Amount</span>
             <div className="flex items-center space-x-6">
               <button onClick={() => setBet(Math.max(10, bet - 10))} disabled={spinning} className="text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">－</button>
               <div className="flex items-center">
