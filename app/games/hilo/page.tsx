@@ -17,7 +17,7 @@ export default function StellarHilo() {
   const loseSnd = useRef<HTMLAudioElement | null>(null) // ✅ เพิ่ม Ref เสียงแพ้
 
   useEffect(() => {
-    shakeSnd.current = new Audio('/sounds/dice.wav')
+    shakeSnd.current = new Audio('/sounds/Dice.wav')
     winSnd.current = new Audio('/sounds/Win.wav')
     loseSnd.current = new Audio('/sounds/Lose.wav') // ✅ โหลดไฟล์ Lose.wav
   }, [])
