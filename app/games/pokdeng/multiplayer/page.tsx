@@ -620,9 +620,16 @@ export default function PokDengMultiplayer() {
     const reset = room.players.map(p => ({
       ...p, cards: [], bet: 0, action: 'IDLE' as PlayerAction, result: null, resultDetail: '',
     }))
+    
+    // เปลี่ยนตรงนี้ครับ: ตั้ง phase เป็น LOBBY และอัปเดต host_id ให้ตรงกับ nextBankerId
     await updateRoom({
-      phase: 'BETTING', players: reset, banker_cards: [], banker_action: 'IDLE',
-      banker_id: nextBankerId, round_number: room.roundNumber + 1,
+      phase: 'LOBBY', 
+      players: reset, 
+      banker_cards: [], 
+      banker_action: 'IDLE',
+      banker_id: nextBankerId, 
+      host_id: nextBankerId, 
+      round_number: room.roundNumber + 1,
     })
   }
  
