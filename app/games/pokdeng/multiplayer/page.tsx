@@ -29,6 +29,15 @@ interface PlayerState {
   isOnline: boolean
 }
  
+interface RoundResult {
+  round: number
+  bankerId: string
+  bankerName: string
+  bankerNet: number
+  players: { id: string; username: string; result: PlayerResult; bet: number; mult: number; detail: string }[]
+  ts: number
+}
+ 
 interface RoomState {
   id: string
   code: string
@@ -40,6 +49,7 @@ interface RoomState {
   bankerAction: 'DECIDING' | 'STAND' | 'HIT' | 'DONE' | 'IDLE'
   roundNumber: number
   rotateBanker: boolean
+  roundHistory: RoundResult[]
 }
  
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
@@ -83,6 +93,23 @@ function resolveResult(playerCards: Card[], bankerCards: Card[]): { result: Play
   return { result: 'DRAW', detail: 'เสมอ' }
 }
  
+function formatResultAmount(result: PlayerResult, bet: number, mult: number): string {
+  if (result === 'WIN') {
+    return mult > 1 ? `+$${bet * mult} (×${mult} ${getMultLabel(mult)})` : `+$${bet}`
+  }
+  if (result === 'LOSE') {
+    return mult > 1 ? `-$${bet * mult} (×${mult} ${getMultLabel(mult)})` : `-$${bet}`
+  }
+  return 'เสมอ คืนทุน'
+}
+ 
+function getMultLabel(mult: number): string {
+  if (mult === 2) return '2เด้ง'
+  if (mult === 3) return '3เด้ง/เซียน'
+  if (mult === 5) return 'ตอง'
+  return ''
+}
+ 
 // ─── Card Component ───────────────────────────────────────────────────────────
 function CardUI({ card, hidden = false, small = false }: { card?: Card; hidden?: boolean; small?: boolean }) {
   const base = small
@@ -119,13 +146,14 @@ export default function PokDengMultiplayer() {
   const [screen, setScreen] = useState<'LOBBY_LIST' | 'ROOM'>('LOBBY_LIST')
   const [lobbyRooms, setLobbyRooms] = useState<{ id: string; code: string; playerCount: number; hostName: string }[]>([])
   const [joinCodeInput, setJoinCodeInput] = useState('')
-  const [betInput, setBetInput] = useState(MIN_BET)
+  const [betInput, setBetInput] = useState<number>(MIN_BET)
+  const [betRaw, setBetRaw] = useState<string>(String(MIN_BET))
   const [rotateBanker, setRotateBanker] = useState(true)
   const [toast, setToast] = useState('')
   const [chatInput, setChatInput] = useState('')
   const [chatLog, setChatLog] = useState<{ uid: string; name: string; msg: string; ts: number }[]>([])
-  // ✅ แยก loading state สำหรับการวางเดิมพัน ป้องกันกดซ้ำ
   const [isBetting, setIsBetting] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
  
   const [room, setRoom] = useState<RoomState | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -149,6 +177,24 @@ export default function PokDengMultiplayer() {
  
   useEffect(() => { roomRef.current = room }, [room])
  
+  // sync betRaw → betInput
+  const handleBetRawChange = (val: string) => {
+    setBetRaw(val)
+    const n = parseInt(val.replace(/[^0-9]/g, ''))
+    if (!isNaN(n) && n >= 0) setBetInput(n)
+  }
+ 
+  const addBet = (v: number) => {
+    const next = betInput + v
+    setBetInput(next)
+    setBetRaw(String(next))
+  }
+ 
+  const resetBet = () => {
+    setBetInput(MIN_BET)
+    setBetRaw(String(MIN_BET))
+  }
+ 
   // ─── Fetch Lobby ───────────────────────────────────────────────────────────
   const fetchLobby = async () => {
     const { data } = await supabase
@@ -166,7 +212,7 @@ export default function PokDengMultiplayer() {
     }
   }
  
-  // ─── Subscribe: Postgres Changes + Broadcast + Presence ───────────────────
+  // ─── Subscribe ────────────────────────────────────────────────────────────
   const subscribeRoom = useCallback((roomId: string) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current)
  
@@ -184,6 +230,7 @@ export default function PokDengMultiplayer() {
         phase: r.phase, players: r.players ?? [], bankerCards: r.banker_cards ?? [],
         bankerAction: r.banker_action ?? 'IDLE', roundNumber: r.round_number ?? 1,
         rotateBanker: r.rotate_banker ?? true,
+        roundHistory: r.round_history ?? [],
       }
       setRoom(parsed)
       if (r.phase === 'RESULT' && profile) {
@@ -236,14 +283,15 @@ export default function PokDengMultiplayer() {
     const { data, error } = await supabase.from('pokdeng_rooms').insert([{
       code: genCode(), host_id: profile.id, banker_id: profile.id,
       phase: 'LOBBY', players: [me], banker_cards: [], banker_action: 'IDLE',
-      round_number: 1, rotate_banker: rotateBanker,
+      round_number: 1, rotate_banker: rotateBanker, round_history: [],
     }]).select().single()
     if (error || !data) return showToast('สร้างห้องไม่สำเร็จ')
  
     const parsed: RoomState = {
       id: data.id, code: data.code, hostId: data.host_id, bankerId: data.banker_id,
       phase: data.phase, players: data.players, bankerCards: data.banker_cards,
-      bankerAction: data.banker_action, roundNumber: data.round_number, rotateBanker: data.rotate_banker,
+      bankerAction: data.banker_action, roundNumber: data.round_number,
+      rotateBanker: data.rotate_banker, roundHistory: data.round_history ?? [],
     }
     setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM')
   }
@@ -265,7 +313,8 @@ export default function PokDengMultiplayer() {
       const parsed: RoomState = {
         id: data.id, code: data.code, hostId: data.host_id, bankerId: data.banker_id,
         phase: data.phase, players: data.players, bankerCards: data.banker_cards,
-        bankerAction: data.banker_action, roundNumber: data.round_number, rotateBanker: data.rotate_banker,
+        bankerAction: data.banker_action, roundNumber: data.round_number,
+        rotateBanker: data.rotate_banker, roundHistory: data.round_history ?? [],
       }
       setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM'); return
     }
@@ -282,7 +331,8 @@ export default function PokDengMultiplayer() {
     const parsed: RoomState = {
       id: data.id, code: data.code, hostId: data.host_id, bankerId: data.banker_id,
       phase: data.phase, players: updated, bankerCards: data.banker_cards,
-      bankerAction: data.banker_action, roundNumber: data.round_number, rotateBanker: data.rotate_banker,
+      bankerAction: data.banker_action, roundNumber: data.round_number,
+      rotateBanker: data.rotate_banker, roundHistory: data.round_history ?? [],
     }
     setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM')
   }
@@ -291,15 +341,29 @@ export default function PokDengMultiplayer() {
   const leaveRoom = async () => {
     if (!room || !profile) return
     const remaining = room.players.filter(p => p.id !== profile.id)
-    if (remaining.length === 0) {
+ 
+    // ถ้าคนที่ออกคือเจ้ามือปัจจุบัน → ลบห้องออกจาก Supabase ทันที
+    if (profile.id === room.bankerId || remaining.length === 0) {
       await supabase.from('pokdeng_rooms').delete().eq('id', room.id)
     } else {
-      const newBankerId = room.bankerId === profile.id ? remaining[0].id : room.bankerId
       const newHostId = room.hostId === profile.id ? remaining[0].id : room.hostId
-      await updateRoom({ players: remaining, banker_id: newBankerId, host_id: newHostId })
+      await updateRoom({ players: remaining, host_id: newHostId })
     }
+ 
     channelRef.current && supabase.removeChannel(channelRef.current)
     setRoom(null); setScreen('LOBBY_LIST'); fetchLobby()
+  }
+ 
+  // ─── Kick Player (Host only, only in LOBBY phase) ──────────────────────────
+  const kickPlayer = async (targetId: string) => {
+    if (!room || !profile) return
+    if (profile.id !== room.bankerId) return showToast('เฉพาะเจ้ามือเท่านั้นที่เตะผู้เล่นได้')
+    if (room.phase !== 'LOBBY') return showToast('ไม่สามารถเตะผู้เล่นขณะเดิมพัน')
+    if (targetId === profile.id) return showToast('ไม่สามารถเตะตัวเองได้')
+ 
+    const remaining = room.players.filter(p => p.id !== targetId)
+    await updateRoom({ players: remaining })
+    showToast('เตะผู้เล่นออกจากห้องแล้ว')
   }
  
   // ─── Start Round (Host) ────────────────────────────────────────────────────
@@ -317,16 +381,14 @@ export default function PokDengMultiplayer() {
   }
  
   // ─── Place Bet ─────────────────────────────────────────────────────────────
-  // ✅ แก้ไขหลัก: ดึงข้อมูลจาก DB โดยตรงก่อน update เพื่อป้องกัน race condition
   const placeBet = async () => {
     if (!room || !profile) return
-    if (isBetting) return // ป้องกันกดซ้ำ
+    if (isBetting) return
     if (profile.id === room.bankerId) return showToast('เจ้ามือไม่ต้องวางเดิมพัน')
     if (betInput < MIN_BET) return showToast(`เดิมพันขั้นต่ำ $${MIN_BET}`)
  
     setIsBetting(true)
     try {
-      // ✅ ดึงข้อมูล room และ profile ล่าสุดจาก DB ก่อนเสมอ
       const [{ data: freshRoom, error: roomErr }, { data: freshProfile, error: profErr }] = await Promise.all([
         supabase.from('pokdeng_rooms').select('*').eq('id', room.id).single(),
         supabase.from('profiles').select('balance').eq('id', profile.id).single(),
@@ -334,21 +396,16 @@ export default function PokDengMultiplayer() {
  
       if (roomErr || !freshRoom) { showToast('ไม่สามารถโหลดข้อมูลห้องได้'); return }
       if (profErr || !freshProfile) { showToast('ไม่สามารถโหลดข้อมูลผู้เล่นได้'); return }
- 
-      // ✅ ตรวจสอบ phase จาก DB ล่าสุด ไม่ใช่จาก state
       if (freshRoom.phase !== 'BETTING') return showToast('ไม่ได้อยู่ในช่วงวางเดิมพัน')
  
-      // ✅ ตรวจสอบว่าผู้เล่นยังไม่ได้วางเดิมพัน (ป้องกัน double bet)
       const freshPlayers: PlayerState[] = freshRoom.players ?? []
       const meInRoom = freshPlayers.find(p => p.id === profile.id)
       if (!meInRoom) { showToast('คุณไม่ได้อยู่ในห้องนี้'); return }
       if (meInRoom.action === 'BET_PLACED') { showToast('คุณวางเดิมพันไปแล้ว'); return }
  
-      // ✅ ตรวจสอบ balance จาก DB ล่าสุด
       const currentBalance = freshProfile.balance
       if (betInput > currentBalance) return showToast(`ยอดเงินไม่พอ (มี $${currentBalance.toLocaleString()})`)
  
-      // ✅ อัปเดต players array โดยใช้ข้อมูลล่าสุดจาก DB
       const updatedPlayers = freshPlayers.map(p =>
         p.id === profile.id ? { ...p, bet: betInput, action: 'BET_PLACED' as PlayerAction } : p
       )
@@ -360,12 +417,9 @@ export default function PokDengMultiplayer() {
  
       if (updateErr) { showToast('วางเดิมพันไม่สำเร็จ: ' + updateErr.message); return }
  
-      // ✅ ตรวจสอบว่าทุกคนวางเดิมพันครบหรือยัง (ใช้ข้อมูลล่าสุด)
       const nonBankersLatest = updatedPlayers.filter(p => p.id !== freshRoom.banker_id)
       const allBetNow = nonBankersLatest.length > 0 && nonBankersLatest.every(p => p.action === 'BET_PLACED')
  
-      // ✅ host เป็นคนแจกไพ่ แต่ต้องรอให้ state update จาก realtime ก่อน
-      // ใช้ freshRoom.host_id เพื่อตรวจสอบ
       if (allBetNow && freshRoom.host_id === profile.id) {
         await dealAllCards(updatedPlayers, freshRoom.banker_id, room.id)
       }
@@ -375,7 +429,6 @@ export default function PokDengMultiplayer() {
   }
  
   // ─── Deal Cards ────────────────────────────────────────────────────────────
-  // ✅ แก้ไข: รับ bankerId และ roomId เป็น parameter แทนการอ่านจาก roomRef เพื่อความแม่นยำ
   const dealAllCards = async (
     players: PlayerState[],
     bankerId?: string,
@@ -420,7 +473,6 @@ export default function PokDengMultiplayer() {
     play('flip')
     const newCard = makeCard()
  
-    // ✅ ดึง room ล่าสุดก่อน update
     const { data: freshRoom } = await supabase.from('pokdeng_rooms').select('players').eq('id', room.id).single()
     if (!freshRoom) return showToast('โหลดข้อมูลไม่สำเร็จ')
  
@@ -436,7 +488,6 @@ export default function PokDengMultiplayer() {
   const playerStand = async () => {
     if (!room || !profile) return
  
-    // ✅ ดึง room ล่าสุดก่อน update
     const { data: freshRoom } = await supabase.from('pokdeng_rooms').select('players').eq('id', room.id).single()
     if (!freshRoom) return showToast('โหลดข้อมูลไม่สำเร็จ')
  
@@ -461,7 +512,6 @@ export default function PokDengMultiplayer() {
     if (!room || !profile || profile.id !== room.bankerId) return
     play('flip')
  
-    // ✅ ดึง banker_cards ล่าสุดจาก DB
     const { data: freshRoom } = await supabase.from('pokdeng_rooms').select('banker_cards').eq('id', room.id).single()
     if (!freshRoom) return showToast('โหลดข้อมูลไม่สำเร็จ')
  
@@ -476,13 +526,11 @@ export default function PokDengMultiplayer() {
     await finalize(room.players, room.bankerCards)
   }
  
-  // ─── Finalize (ใช้ roomRef) ────────────────────────────────────────────────
   const finalize = async (players: PlayerState[], bankerCards: Card[]) => {
     if (!roomRef.current) return
     await finalizeByIds(players, bankerCards, roomRef.current.bankerId, roomRef.current.id)
   }
  
-  // ✅ แก้ไข: แยก finalize ออกมาเพื่อรับ bankerId / roomId โดยตรง ไม่ต้องพึ่ง ref
   const finalizeByIds = async (
     players: PlayerState[],
     bankerCards: Card[],
@@ -503,8 +551,33 @@ export default function PokDengMultiplayer() {
       else if (p.result === 'LOSE') bankerNet += p.bet * mult
     }
  
+    // ─── Build round history entry ─────────────────────────────────────────
+    const currentRoom = roomRef.current
+    const bankerPlayer = players.find(p => p.id === bankerId)
+    const newHistoryEntry: RoundResult = {
+      round: currentRoom?.roundNumber ?? 1,
+      bankerId,
+      bankerName: bankerPlayer?.username ?? '—',
+      bankerNet,
+      players: resolved
+        .filter(p => p.id !== bankerId)
+        .map(p => ({
+          id: p.id,
+          username: p.username,
+          result: p.result,
+          bet: p.bet,
+          mult: getHandInfo(p.cards).mult,
+          detail: p.resultDetail,
+        })),
+      ts: Date.now(),
+    }
+ 
+    const existingHistory: RoundResult[] = currentRoom?.roundHistory ?? []
+    const updatedHistory = [...existingHistory, newHistoryEntry]
+ 
     await supabase.from('pokdeng_rooms').update({
-      phase: 'RESULT', players: resolved, banker_action: 'DONE'
+      phase: 'RESULT', players: resolved, banker_action: 'DONE',
+      round_history: updatedHistory,
     }).eq('id', roomId)
  
     for (const p of resolved) {
@@ -517,7 +590,10 @@ export default function PokDengMultiplayer() {
         await supabase.from('game_logs').insert([{
           user_id: p.id, game_name: 'PokDeng-Multi',
           change_amount: payout - p.bet,
-          result: p.result === 'WIN' ? `ชนะ +$${p.bet * mult} (${p.resultDetail})` : p.result === 'DRAW' ? 'เสมอ' : `แพ้ -$${p.bet}`,
+          result: p.result === 'WIN'
+            ? `ชนะ +$${p.bet * mult}${mult > 1 ? ` (×${mult} ${getMultLabel(mult)})` : ''}`
+            : p.result === 'DRAW' ? 'เสมอ'
+            : `แพ้ -$${p.bet * mult}${mult > 1 ? ` (×${mult} ${getMultLabel(mult)})` : ''}`,
         }])
       }
     }
@@ -569,6 +645,7 @@ export default function PokDengMultiplayer() {
   const myTurn = room?.phase === 'PLAYER_TURNS' && me?.action === 'DECIDING' && !isBanker
   const bankerTurn = room?.phase === 'BANKER_TURN' && isBanker
   const nextBankerName = room ? room.players[(room.players.findIndex(p => p.id === room.bankerId) + 1) % room.players.length]?.username : ''
+  const canKick = isBanker && room?.phase === 'LOBBY'
  
   // ══════════════════════════════════════════════════════════════════════════
   //  LOBBY LIST
@@ -733,10 +810,12 @@ export default function PokDengMultiplayer() {
               {room.bankerCards.length === 0
                 ? <div className="w-20 md:w-24 h-28 md:h-36 border-2 border-white/5 rounded-xl bg-black/20" />
                 : room.bankerCards.map((c, i) => (
-                  <CardUI key={i} card={c} hidden={room.phase !== 'BANKER_TURN' && room.phase !== 'RESULT' && !isBanker} />
+                  // เจ้ามือเห็นไพ่ตัวเอง แต่คนอื่นเห็นเฉพาะตอน BANKER_TURN หรือ RESULT
+                  <CardUI key={i} card={c} hidden={!isBanker && room.phase !== 'BANKER_TURN' && room.phase !== 'RESULT'} />
                 ))}
             </div>
  
+            {/* แสดงแต้มเจ้ามือ: เจ้ามือเห็นเสมอ, คนอื่นเห็นตอน BANKER_TURN หรือ RESULT */}
             {room.bankerCards.length > 0 && (isBanker || room.phase === 'BANKER_TURN' || room.phase === 'RESULT') && (
               <ScoreBadge score={calcScore(room.bankerCards)} highlight />
             )}
@@ -762,7 +841,9 @@ export default function PokDengMultiplayer() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {nonBankers.map(p => {
               const isMe = p.id === profile?.id
+              // ผู้เล่นเห็นไพ่ตัวเอง + เห็นไพ่คนอื่นเฉพาะ BANKER_TURN หรือ RESULT
               const showCards = isMe || room.phase === 'BANKER_TURN' || room.phase === 'RESULT'
+              const { mult, label } = getHandInfo(p.cards)
               return (
                 <div key={p.id} className={`rounded-2xl border p-3 flex flex-col gap-2 transition-all duration-300 fu
                   ${isMe && myTurn ? 'border-yellow-500/60 bg-yellow-900/10 my-glow' :
@@ -795,10 +876,20 @@ export default function PokDengMultiplayer() {
                   </div>
  
                   {/* Status */}
-                  <div className="text-center text-[11px] font-black min-h-[16px]">
-                    {p.result === 'WIN' && <span className="text-green-400">🏆 +${p.bet * getHandInfo(p.cards).mult} ({p.resultDetail})</span>}
-                    {p.result === 'LOSE' && <span className="text-red-400">💀 -${p.bet * getHandInfo(p.cards).mult}</span>}
-                    {p.result === 'DRAW' && <span className="text-yellow-400">🤝 เสมอ</span>}
+                  <div className="text-center text-[11px] font-black min-h-[32px] flex flex-col justify-center gap-0.5">
+                    {p.result === 'WIN' && (
+                      <>
+                        <span className="text-green-400">🏆 ชนะ +${p.bet * mult}</span>
+                        {mult > 1 && <span className="text-green-600 text-[10px]">{label} (×{mult})</span>}
+                      </>
+                    )}
+                    {p.result === 'LOSE' && (
+                      <>
+                        <span className="text-red-400">💀 แพ้ -${p.bet * mult}</span>
+                        {mult > 1 && <span className="text-red-700 text-[10px]">{label} (×{mult})</span>}
+                      </>
+                    )}
+                    {p.result === 'DRAW' && <span className="text-yellow-400">🤝 เสมอ คืนทุน</span>}
                     {!p.result && p.cards.length > 0 && showCards && <ScoreBadge score={calcScore(p.cards)} />}
                     {!p.result && p.action === 'STAND' && <span className="text-blue-400">✋ หยุด</span>}
                     {!p.result && p.action === 'HIT' && <span className="text-purple-400">🃏 จั่วแล้ว</span>}
@@ -838,29 +929,44 @@ export default function PokDengMultiplayer() {
               </div>
             )}
  
-            {/* ✅ แสดง panel วางเดิมพัน: ไม่ใช่เจ้ามือ และยังไม่ได้วาง */}
+            {/* วางเดิมพัน: ยังไม่ได้วาง */}
             {room.phase === 'BETTING' && !isBanker && me?.action !== 'BET_PLACED' && (
               <div className="flex flex-col gap-4">
                 <p className="text-xs font-black text-gray-500 uppercase tracking-widest text-center">💰 วางเดิมพัน</p>
-                <div className="flex items-center justify-between px-5 py-3 bg-white/5 rounded-2xl border border-white/10">
-                  <span className="text-gray-500 font-bold text-sm">เดิมพัน</span>
-                  <span className="text-3xl font-black text-yellow-400">${betInput}</span>
+ 
+                {/* input กรอกเองได้ */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 font-bold text-sm shrink-0">เดิมพัน</span>
+                  <div className="flex-1 relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-400 font-black">$</span>
+                    <input
+                      type="number"
+                      min={MIN_BET}
+                      value={betRaw}
+                      onChange={e => handleBetRawChange(e.target.value)}
+                      onBlur={() => {
+                        if (betInput < MIN_BET) { setBetInput(MIN_BET); setBetRaw(String(MIN_BET)) }
+                      }}
+                      className="w-full bg-white/5 border border-yellow-500/30 rounded-xl pl-7 pr-3 py-3 font-black text-2xl text-yellow-400 focus:outline-none focus:border-yellow-400 text-right"
+                    />
+                  </div>
                 </div>
+ 
                 <div className="flex gap-2 flex-wrap">
                   {[10, 50, 100, 500, 1000].map(v => (
-                    <button key={v} onClick={() => setBetInput(b => b + v)}
+                    <button key={v} onClick={() => addBet(v)}
                       className="flex-1 py-2.5 bg-white/5 rounded-xl font-black text-sm hover:bg-yellow-500 hover:text-black transition min-w-[2.5rem]">
                       +{v}
                     </button>
                   ))}
-                  <button onClick={() => setBetInput(MIN_BET)} className="px-3 py-2.5 bg-red-900/30 text-red-400 rounded-xl font-black text-sm">Reset</button>
+                  <button onClick={resetBet} className="px-3 py-2.5 bg-red-900/30 text-red-400 rounded-xl font-black text-sm">Reset</button>
                 </div>
-                {/* ✅ ปุ่มวางเดิมพันแสดง loading และ disabled ระหว่างรอ */}
+ 
                 <button
                   onClick={placeBet}
-                  disabled={isBetting}
+                  disabled={isBetting || betInput < MIN_BET}
                   className={`w-full py-4 font-black rounded-2xl text-lg transition active:scale-95 ${
-                    isBetting
+                    isBetting || betInput < MIN_BET
                       ? 'bg-yellow-700 text-yellow-200 cursor-not-allowed opacity-70'
                       : 'bg-yellow-500 hover:bg-yellow-400 text-black'
                   }`}>
@@ -871,7 +977,7 @@ export default function PokDengMultiplayer() {
  
             {room.phase === 'BETTING' && !isBanker && me?.action === 'BET_PLACED' && (
               <div className="text-center py-5 text-gray-600 font-black animate-pulse text-sm">
-                ✅ วางเดิมพันแล้ว รอผู้เล่นอื่น ({nonBankers.filter(p => p.action === 'BET_PLACED').length}/{nonBankers.length})
+                ✅ วางเดิมพัน ${me.bet} แล้ว รอผู้เล่นอื่น ({nonBankers.filter(p => p.action === 'BET_PLACED').length}/{nonBankers.length})
               </div>
             )}
  
@@ -927,25 +1033,65 @@ export default function PokDengMultiplayer() {
  
             {room.phase === 'RESULT' && (
               <div className="flex flex-col items-center gap-4">
+                {/* ผลสรุปของแต่ละผู้เล่น */}
                 <div className="w-full grid grid-cols-2 gap-2">
-                  {nonBankers.map(p => (
-                    <div key={p.id} className={`p-2.5 rounded-xl text-center text-xs font-black border
-                      ${p.result === 'WIN' ? 'bg-green-900/20 border-green-500/30 text-green-400' :
-                        p.result === 'LOSE' ? 'bg-red-900/20 border-red-500/30 text-red-400 opacity-70' :
-                        'bg-white/5 border-white/10 text-yellow-400'}`}>
-                      <p className="truncate">{p.username}</p>
-                      <p>{p.result === 'WIN' ? `+$${p.bet * getHandInfo(p.cards).mult}` : p.result === 'LOSE' ? `-$${p.bet * getHandInfo(p.cards).mult}` : 'เสมอ'}</p>
-                    </div>
-                  ))}
+                  {nonBankers.map(p => {
+                    const { mult, label } = getHandInfo(p.cards)
+                    return (
+                      <div key={p.id} className={`p-2.5 rounded-xl text-center text-xs font-black border
+                        ${p.result === 'WIN' ? 'bg-green-900/20 border-green-500/30 text-green-400' :
+                          p.result === 'LOSE' ? 'bg-red-900/20 border-red-500/30 text-red-400 opacity-80' :
+                          'bg-white/5 border-white/10 text-yellow-400'}`}>
+                        <p className="truncate">{p.username}</p>
+                        <p className="text-sm">
+                          {p.result === 'WIN'
+                            ? `+$${p.bet * mult}`
+                            : p.result === 'LOSE'
+                            ? `-$${p.bet * mult}`
+                            : 'เสมอ'}
+                        </p>
+                        {mult > 1 && <p className="text-[10px] opacity-70">{label} ×{mult}</p>}
+                      </div>
+                    )
+                  })}
                 </div>
  
+                {/* ผลของตัวเอง (ถ้าไม่ใช่เจ้ามือ) */}
                 {me && me.id !== room.bankerId && me.result && (
-                  <div className={`text-2xl md:text-3xl font-black animate-bounce ${me.result === 'WIN' ? 'text-green-400' : me.result === 'LOSE' ? 'text-red-400' : 'text-yellow-400'}`}>
-                    {me.result === 'WIN'
-                      ? `🏆 ชนะ! +$${me.bet * getHandInfo(me.cards).mult} (${getHandInfo(me.cards).label})`
-                      : me.result === 'LOSE'
-                      ? `💀 แพ้ -$${me.bet * getHandInfo(me.cards).mult}`
-                      : '🤝 เสมอ คืนทุน'}
+                  <div className={`text-xl md:text-2xl font-black animate-bounce text-center ${me.result === 'WIN' ? 'text-green-400' : me.result === 'LOSE' ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {(() => {
+                      const { mult, label } = getHandInfo(me.cards)
+                      if (me.result === 'WIN') return `🏆 ชนะ! +$${me.bet * mult}${mult > 1 ? ` (${label} ×${mult})` : ''}`
+                      if (me.result === 'LOSE') return `💀 แพ้ -$${me.bet * mult}${mult > 1 ? ` (${label} ×${mult})` : ''}`
+                      return '🤝 เสมอ คืนทุน'
+                    })()}
+                  </div>
+                )}
+ 
+                {/* ผลเจ้ามือ */}
+                {isBanker && (
+                  <div className={`text-xl md:text-2xl font-black animate-bounce text-center ${
+                    (() => {
+                      const bankerNet = nonBankers.reduce((acc, p) => {
+                        if (!p.result) return acc
+                        const { mult } = getHandInfo(p.cards)
+                        if (p.result === 'WIN') return acc - p.bet * mult
+                        if (p.result === 'LOSE') return acc + p.bet * mult
+                        return acc
+                      }, 0)
+                      return bankerNet >= 0 ? 'text-green-400' : 'text-red-400'
+                    })()
+                  }`}>
+                    {(() => {
+                      const bankerNet = nonBankers.reduce((acc, p) => {
+                        if (!p.result) return acc
+                        const { mult } = getHandInfo(p.cards)
+                        if (p.result === 'WIN') return acc - p.bet * mult
+                        if (p.result === 'LOSE') return acc + p.bet * mult
+                        return acc
+                      }, 0)
+                      return bankerNet >= 0 ? `🏦 เจ้ามือได้ +$${bankerNet}` : `🏦 เจ้ามือเสีย -$${Math.abs(bankerNet)}`
+                    })()}
                   </div>
                 )}
  
@@ -960,11 +1106,61 @@ export default function PokDengMultiplayer() {
               </div>
             )}
           </div>
+ 
+          {/* ── Round History ── */}
+          {room.roundHistory && room.roundHistory.length > 0 && (
+            <div className="bg-black/70 rounded-3xl border border-white/10 p-4">
+              <button
+                onClick={() => setShowHistory(v => !v)}
+                className="w-full flex items-center justify-between text-xs font-black text-gray-500 uppercase tracking-widest">
+                <span>📋 ประวัติรอบ ({room.roundHistory.length} รอบ)</span>
+                <span className="text-gray-700">{showHistory ? '▲ ซ่อน' : '▼ ดู'}</span>
+              </button>
+ 
+              {showHistory && (
+                <div className="mt-3 flex flex-col gap-3 max-h-80 overflow-y-auto scr">
+                  {[...room.roundHistory].reverse().map((rh, idx) => (
+                    <div key={idx} className="bg-white/[0.03] rounded-2xl border border-white/5 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black text-yellow-400">รอบ {rh.round}</span>
+                        <span className="text-[10px] text-gray-700">{new Date(rh.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {/* เจ้ามือ */}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-yellow-500 font-bold">🏦 {rh.bankerName} (เจ้ามือ)</span>
+                          <span className={`font-black ${rh.bankerNet >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {rh.bankerNet >= 0 ? `+$${rh.bankerNet}` : `-$${Math.abs(rh.bankerNet)}`}
+                          </span>
+                        </div>
+                        {/* ผู้เล่น */}
+                        {rh.players.map((p, pi) => (
+                          <div key={pi} className="flex items-center justify-between text-xs pl-2">
+                            <span className={`font-bold ${p.id === profile?.id ? 'text-yellow-300' : 'text-gray-400'}`}>
+                              {p.username}{p.id === profile?.id ? ' (คุณ)' : ''}
+                            </span>
+                            <span className={`font-black ${p.result === 'WIN' ? 'text-green-400' : p.result === 'LOSE' ? 'text-red-400' : 'text-yellow-400'}`}>
+                              {p.result === 'WIN'
+                                ? `+$${p.bet * p.mult}${p.mult > 1 ? ` (×${p.mult})` : ''}`
+                                : p.result === 'LOSE'
+                                ? `-$${p.bet * p.mult}${p.mult > 1 ? ` (×${p.mult})` : ''}`
+                                : 'เสมอ'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
  
         {/* ═══ SIDEBAR ══════════════════════════════════════════════════════ */}
         <div className="w-full xl:w-64 flex flex-col gap-4 shrink-0">
  
+          {/* Players list */}
           <div className="bg-black/70 rounded-3xl border border-white/10 p-4 flex flex-col gap-3">
             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">ผู้เล่น ({room.players.length}/{MAX_PLAYERS})</h3>
             {room.players.map(p => (
@@ -980,10 +1176,28 @@ export default function PokDengMultiplayer() {
                   {p.id === room.hostId && p.id !== room.bankerId && ' 👑'}
                 </span>
                 <span className="text-[10px] text-gray-600 font-bold shrink-0">${p.balance.toLocaleString()}</span>
+ 
+                {/* ปุ่มเตะ: แสดงเฉพาะเจ้ามือ, phase LOBBY, ไม่ใช่ตัวเอง */}
+                {canKick && p.id !== profile?.id && (
+                  <button
+                    onClick={() => kickPlayer(p.id)}
+                    title="เตะผู้เล่นออก"
+                    className="ml-1 text-[10px] px-1.5 py-0.5 rounded-md bg-red-900/40 text-red-400 hover:bg-red-700/60 font-black transition shrink-0">
+                    ✕
+                  </button>
+                )}
               </div>
             ))}
+ 
+            {/* หมายเหตุปุ่มเตะ */}
+            {isBanker && room.phase !== 'LOBBY' && (
+              <p className="text-[10px] text-gray-700 font-bold text-center mt-1">
+                (เตะได้เฉพาะช่วงรอในล็อบบี้)
+              </p>
+            )}
           </div>
  
+          {/* Chat */}
           <div className="bg-black/70 rounded-3xl border border-white/10 p-4 flex flex-col gap-2 h-56 xl:h-72">
             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">💬 แชท</h3>
             <div className="flex-1 overflow-y-auto scr flex flex-col gap-1 min-h-0">
@@ -1003,6 +1217,7 @@ export default function PokDengMultiplayer() {
             </div>
           </div>
  
+          {/* Rules */}
           <div className="bg-black/70 rounded-3xl border border-white/10 p-4">
             <h3 className="text-xs font-black text-yellow-500 uppercase tracking-widest text-center mb-3">กติกา</h3>
             <div className="space-y-1.5 text-[11px] text-gray-500 font-bold">
@@ -1015,6 +1230,7 @@ export default function PokDengMultiplayer() {
                 <p>🏦 เจ้ามือจั่ว/หยุดเองได้</p>
                 <p>🔄 หมุนเวียนเจ้ามือ</p>
                 <p>👑 เจ้าของห้องควบคุมเกม</p>
+                <p>🚫 เจ้ามือออก = ห้องถูกลบ</p>
               </div>
             </div>
           </div>
