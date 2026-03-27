@@ -37,7 +37,7 @@ export default function HomePage() {
     },
     { 
       id: 6, 
-      name: 'น้ำเต้าปูปลา', 
+      name: 'เดอะล็อตโต้', 
       href: '/games/fish-prawn-crab', 
       image: 'https://i.pinimg.com/736x/d3/01/b9/d301b9ba0d9d64471063f84baa57e9ff.jpg' 
     },
