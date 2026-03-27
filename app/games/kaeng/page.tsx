@@ -64,7 +64,7 @@ const aiShouldDeclare = (hand: Card[]) => {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-const PLAYER_NAMES = ['คุณ', 'AI ต้อม', 'AI แดง', 'AI สม']
+const PLAYER_NAMES = ['คุณ', 'Rachel', 'Rebecca', 'Renata']
 type Phase = 'IDLE' | 'PLAYING' | 'RESULT'
 type EndReason = 'KAENG' | 'KNOCK' | null
 
