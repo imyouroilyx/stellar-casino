@@ -26,7 +26,7 @@ export default function PokDengMultiplayer() {
         </div>
 
         <button 
-          onClick={() => router.push('/games/pokdeng/select')} 
+          onClick={() => router.push('/games/pokdeng')} 
           className="mt-4 px-8 py-3 bg-gradient-to-r from-purple-700 to-purple-900 hover:from-purple-600 hover:to-purple-800 rounded-xl font-black text-white text-base transition active:scale-95 shadow-lg shadow-purple-900/50"
         >
           ← กลับหน้าเลือกโหมด
