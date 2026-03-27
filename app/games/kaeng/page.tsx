@@ -6,19 +6,19 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
- 
+
 // ─── Game Logic ───────────────────────────────────────────────────────────────
 const SUITS  = ['♠','♥','♦','♣'] as const
 const VALUES = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'] as const
 type Card = { suit:string; value:string; score:number }
- 
+
 const makeCard = (): Card => {
   const suit  = SUITS[Math.floor(Math.random() * SUITS.length)]
   const value = VALUES[Math.floor(Math.random() * VALUES.length)]
   const score = value === 'A' ? 1 : ['J','Q','K'].includes(value) ? 10 : parseInt(value)
   return { suit, value, score }
 }
- 
+
 // สร้างสำรับไพ่ 52 ใบ แล้วสับ
 function makeDeck(): Card[] {
   const deck: Card[] = []
@@ -32,10 +32,20 @@ function makeDeck(): Card[] {
   }
   return deck
 }
- 
+
 const handScore = (cards: Card[]) => cards.reduce((s, c) => s + c.score, 0)
 const isRed = (suit: string) => suit === '♥' || suit === '♦'
- 
+
+// เรียงไพ่จากแต้มน้อยไปมาก (ซ้ายไปขวา)
+const sortHand = (hand: Card[]): Card[] =>
+  [...hand].sort((a, b) => a.score - b.score)
+
+// ตรวจว่ามือมีไพ่ที่ค่าเหมือน topDiscard ≥ 2 ใบ (ตบ)
+const canSlap = (hand: Card[], top: Card | undefined): boolean => {
+  if (!top) return false
+  return hand.filter(c => c.value === top.value).length >= 2
+}
+
 // AI logic: ทิ้งไพ่แต้มสูงสุด
 function aiChooseDiscard(hand: Card[]): number {
   let maxIdx = 0
@@ -43,22 +53,22 @@ function aiChooseDiscard(hand: Card[]): number {
     if (hand[i].score > hand[maxIdx].score) maxIdx = i
   return maxIdx
 }
- 
+
 // AI ตัดสินใจแคง: ถ้าแต้มรวม ≤ 8
 const aiShouldDeclare = (hand: Card[]) => handScore(hand) <= 8
- 
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 const PLAYER_NAMES = ['คุณ', 'AI ต้อม', 'AI แดง', 'AI สม']
 type Phase = 'IDLE' | 'PLAYING' | 'RESULT'
 type EndReason = 'KAENG' | 'KNOCK' | null
- 
+
 interface PlayerState {
   name:   string
   hand:   Card[]
   isHuman: boolean
   score:  number  // แต้มรวมมือ (ยิ่งน้อยยิ่งดี)
 }
- 
+
 // ─── Card UI ──────────────────────────────────────────────────────────────────
 function CardUI({ card, hidden=false, highlight=false, small=false, onClick }:
   { card?:Card; hidden?:boolean; highlight?:boolean; small?:boolean; onClick?:()=>void }) {
@@ -76,7 +86,7 @@ function CardUI({ card, hidden=false, highlight=false, small=false, onClick }:
     </div>
   )
 }
- 
+
 // ─── Discard pile top card ────────────────────────────────────────────────────
 function DiscardTop({ card }: { card?: Card }) {
   if (!card) return <div className="w-14 h-20 rounded-lg border-2 border-white/10 bg-white/5 flex items-center justify-center text-gray-700 text-xs font-bold">กอง<br/>ทิ้ง</div>
@@ -86,11 +96,11 @@ function DiscardTop({ card }: { card?: Card }) {
     </div>
   )
 }
- 
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function KaengSingle() {
   const { profile, syncUser } = useUser()
- 
+
   const [phase,          setPhase]          = useState<Phase>('IDLE')
   const [bet,            setBet]            = useState(10)
   const [players,        setPlayers]        = useState<PlayerState[]>([])
@@ -104,36 +114,40 @@ export default function KaengSingle() {
   const [resultMsg,      setResultMsg]      = useState('')
   const [log,            setLog]            = useState<string[]>([])
   const [isAnimating,    setIsAnimating]    = useState(false)
- 
+  const [slapNotice,     setSlapNotice]     = useState('')   // "ตบ!" หรือ "โง่!"
+  const [slapTarget,     setSlapTarget]     = useState<string>('')
+
   const deckRef      = useRef<Card[]>([])
   const playersRef   = useRef<PlayerState[]>([])
   const discardRef   = useRef<Card[]>([])
   const turnRef      = useRef(0)
- 
+
   const sfx = useRef<Record<string,HTMLAudioElement>>({})
   useEffect(() => {
     sfx.current.flip    = new Audio('/sounds/Card-flip.wav')
     sfx.current.shuffle = new Audio('/sounds/Card-shuffle.wav')
     sfx.current.win     = new Audio('/sounds/Win.wav')
     sfx.current.lose    = new Audio('/sounds/Lose.wav')
+    sfx.current.slap    = new Audio('/sounds/Slap.wav')
+    sfx.current.boo     = new Audio('/sounds/Boo.wav')
   }, [])
   const play = (k:string) => { const a=sfx.current[k]; if(a){a.currentTime=0;a.play().catch(()=>{})} }
- 
+
   const addLog = (msg:string) => setLog(prev => [msg, ...prev.slice(0, 19)])
- 
+
   // sync refs
   useEffect(() => { deckRef.current    = deck    }, [deck])
   useEffect(() => { playersRef.current = players }, [players])
   useEffect(() => { discardRef.current = discardPile }, [discardPile])
   useEffect(() => { turnRef.current    = currentTurn }, [currentTurn])
- 
+
   // ── Start game ─────────────────────────────────────────────────────────
   const startGame = async () => {
     if (!profile || profile.balance < bet) return alert('ยอดเงินไม่พอ!')
     play('shuffle')
     await supabase.from('profiles').update({ balance: profile.balance - bet }).eq('id', profile.id)
     await syncUser()
- 
+
     const newDeck = makeDeck()
     // แจก 5 ใบต่อคน
     const newPlayers: PlayerState[] = PLAYER_NAMES.map((name, i) => ({
@@ -141,8 +155,11 @@ export default function KaengSingle() {
       hand: newDeck.splice(0, 5),
       score: 0,
     }))
-    newPlayers.forEach(p => { p.score = handScore(p.hand) })
- 
+    newPlayers.forEach(p => {
+      p.hand  = sortHand(p.hand)
+      p.score = handScore(p.hand)
+    })
+
     setPlayers(newPlayers)
     setDeck(newDeck)
     setDiscardPile([])
@@ -156,14 +173,14 @@ export default function KaengSingle() {
     setPhase('PLAYING')
     addLog('แจกไพ่แล้ว — ตาของคุณ!')
   }
- 
+
   // ── Check flow: ไพ่บนกองทิ้ง ตรงกับไพ่ในมือผู้เล่นไหม ─────────────────
   const checkCanFlow = useCallback((hand: Card[], topDiscard: Card | undefined) => {
     if (!topDiscard) return false
     return hand.some(c => c.value === topDiscard.value)
   }, [])
- 
-  // ── Update flow state เมื่อ turn เปลี่ยน ─────────────────────────────────
+
+  // ── Update flow/slap state เมื่อ turn เปลี่ยน ───────────────────────────
   useEffect(() => {
     if (phase !== 'PLAYING') return
     const p = players[currentTurn]
@@ -172,7 +189,20 @@ export default function KaengSingle() {
     setCanFlow(checkCanFlow(p.hand, top))
     setSelectedCard(null)
   }, [currentTurn, discardPile, players, phase, checkCanFlow])
- 
+
+  // ── ตรวจ "โง่" — ถ้า AI ทิ้งไพ่แล้วคนอื่น (ถัดไป) ไหลได้แต่ไม่ไหล ─────
+  // จะตรวจหลัง AI ทิ้ง: ถ้า discardPile เปลี่ยน และตาถัดไปเป็น human แต่ไหลได้
+  useEffect(() => {
+    if (phase !== 'PLAYING' || currentTurn !== 0) return
+    const top = discardPile[discardPile.length - 1]
+    if (!top) return
+    // ถ้าตาล่าสุดไม่ใช่ human ที่เพิ่งทิ้ง (AI ทิ้ง) และ human ไหลได้
+    const humanHand = players[0]?.hand ?? []
+    if (checkCanFlow(humanHand, top)) {
+      // ไม่แสดง "โง่" อัตโนมัติ — แสดงเฉพาะตอนที่ human เลือกจั่วแทนที่จะไหล
+    }
+  }, [discardPile])
+
   // ── AI turn (เรียกหลัง human action) ────────────────────────────────────
   const doAiTurn = useCallback(async (
     turnIdx: number,
@@ -183,24 +213,30 @@ export default function KaengSingle() {
     if (turnIdx === 0) return  // human
     const ai = ps[turnIdx]
     const top = dp[dp.length - 1]
- 
+
     await new Promise(r => setTimeout(r, 700))
- 
-    // ตรวจไหล
+
+    // ตรวจไหล / ตบ
+    const slapAiCards = top ? ai.hand.filter(c => c.value === top.value) : []
+    const isAiSlapping = slapAiCards.length >= 2
     const flowIdx = ai.hand.findIndex(c => c.value === top?.value)
     if (top && flowIdx !== -1) {
-      // ไหล
-      play('flip')
-      const newHand = ai.hand.filter((_,i) => i !== flowIdx)
-      const newDp   = [...dp, ai.hand[flowIdx]]
-      addLog(`${ai.name} ไหล ${ai.hand[flowIdx].value}${ai.hand[flowIdx].suit}`)
- 
+      play(isAiSlapping ? 'slap' : 'win')
+      const newHand = isAiSlapping
+        ? ai.hand.filter(c => c.value !== top.value)
+        : ai.hand.filter((_,i) => i !== flowIdx)
+      const newDp = isAiSlapping
+        ? [...dp, ...slapAiCards]
+        : [...dp, ai.hand[flowIdx]]
+      const label = isAiSlapping ? `ตบ! ${slapAiCards.length} ใบ` : 'ไหล'
+      addLog(`${ai.name} ${label} ${top.value}${top.suit}`)
+
       if (newHand.length === 0) {
         // น็อค!
         const newPs = ps.map((p,i) => i===turnIdx ? {...p, hand:newHand, score:0} : p)
         return endGame(newPs, dk, newDp, turnIdx, 'KNOCK')
       }
- 
+
       const newPs = ps.map((p,i) => i===turnIdx ? {...p, hand:newHand, score:handScore(newHand)} : p)
       setPlayers(newPs); setDiscardPile(newDp)
       // next turn
@@ -211,7 +247,7 @@ export default function KaengSingle() {
       }
       return
     }
- 
+
     // จั่วไพ่
     if (dk.length === 0) { endGame(ps, dk, dp, -1, 'KAENG'); return }
     const drawn = dk[0]
@@ -219,14 +255,14 @@ export default function KaengSingle() {
     play('flip')
     const newHand = [...ai.hand, drawn]
     addLog(`${ai.name} จั่วไพ่`)
- 
+
     // แคง?
     if (aiShouldDeclare(newHand)) {
       const newPs = ps.map((p,i) => i===turnIdx ? {...p, hand:newHand, score:handScore(newHand)} : p)
       addLog(`${ai.name} ประกาศ แคง! (${handScore(newHand)} แต้ม)`)
       return endGame(newPs, newDk, dp, turnIdx, 'KAENG')
     }
- 
+
     // ทิ้งไพ่แต้มสูงสุด
     const discardIdx = aiChooseDiscard(newHand)
     const discarded  = newHand[discardIdx]
@@ -234,58 +270,77 @@ export default function KaengSingle() {
     const newDp2     = [...dp, discarded]
     addLog(`${ai.name} ทิ้ง ${discarded.value}${discarded.suit}`)
     play('flip')
- 
+
     const newPs2 = ps.map((p,i) => i===turnIdx ? {...p, hand:finalHand, score:handScore(finalHand)} : p)
     setPlayers(newPs2); setDeck(newDk); setDiscardPile(newDp2)
- 
+
     const next = (turnIdx + 1) % 4
     setCurrentTurn(next)
     if (next !== 0) {
       setTimeout(() => doAiTurn(next, newPs2, newDk, newDp2), 200)
     }
   }, [])
- 
+
   // ── Human: ไหลไพ่ ─────────────────────────────────────────────────────
   const humanFlow = () => {
     if (!canFlow || isAnimating) return
     const top = discardPile[discardPile.length - 1]
     if (!top) return
     const p = players[0]
+    // ตรวจตบ: มีไพ่ค่าเดียวกันในมือ ≥ 2 ใบ → ทิ้งได้ทั้งหมดพร้อมกัน
+    const slapCards = p.hand.filter(c => c.value === top.value)
+    const isSlapping = slapCards.length >= 2
     const flowIdx = p.hand.findIndex(c => c.value === top.value)
     if (flowIdx === -1) return
- 
+
     setIsAnimating(true)
-    play('flip')
-    const newHand = p.hand.filter((_,i) => i !== flowIdx)
-    const newDp   = [...discardPile, p.hand[flowIdx]]
-    addLog(`คุณ ไหล ${p.hand[flowIdx].value}${p.hand[flowIdx].suit}`)
- 
+    // ไหล = Win.wav, ตบ = Slap.wav
+    play(isSlapping ? 'slap' : 'win')
+    const newHand = isSlapping
+      ? p.hand.filter(c => c.value !== top.value)   // ทิ้งทุกใบที่ตรง
+      : p.hand.filter((_,i) => i !== flowIdx)
+    const newDp = isSlapping
+      ? [...discardPile, ...slapCards]
+      : [...discardPile, p.hand[flowIdx]]
+    const actionLabel = isSlapping ? `ตบ! ${slapCards.length} ใบ` : 'ไหล'
+    if (isSlapping) { setSlapNotice('ตบ!'); setTimeout(() => setSlapNotice(''), 1500) }
+    addLog(`คุณ ${actionLabel} ${top.value}${top.suit}`)
+
     if (newHand.length === 0) {
       const newPs = players.map((pl,i) => i===0 ? {...pl, hand:newHand, score:0} : pl)
       endGame(newPs, deck, newDp, 0, 'KNOCK')
       return
     }
- 
+
     const newPs = players.map((pl,i) => i===0 ? {...pl, hand:newHand, score:handScore(newHand)} : pl)
     setPlayers(newPs); setDiscardPile(newDp); setCanFlow(false); setIsAnimating(false)
     const next = 1
     setCurrentTurn(next)
     setTimeout(() => doAiTurn(next, newPs, deck, newDp), 200)
   }
- 
+
   // ── Human: จั่วไพ่ ────────────────────────────────────────────────────
   const humanDraw = () => {
     if (isAnimating || currentTurn !== 0) return
     if (deck.length === 0) return endGame(players, deck, discardPile, -1, 'KAENG')
+    // ตรวจ "โง่" — จั่วทั้งที่ไหลได้
+    if (canFlow) {
+      play('boo')
+      setSlapNotice('โง่!')
+      setTimeout(() => setSlapNotice(''), 2000)
+      addLog('⚠️ โง่! คุณจั่วทั้งที่ไหลได้')
+    }
     play('flip')
     const drawn  = deck[0]
     const newDk  = deck.slice(1)
     const newHand = [...players[0].hand, drawn]
     const newPs  = players.map((p,i) => i===0 ? {...p, hand:newHand, score:handScore(newHand)} : p)
-    setPlayers(newPs); setDeck(newDk); setSelectedCard(null)
+    // เรียงไพ่ใหม่
+    const sortedPs = newPs.map((p,i) => i===0 ? {...p, hand:sortHand(p.hand)} : p)
+    setPlayers(sortedPs); setDeck(newDk); setSelectedCard(null)
     addLog(`คุณจั่ว ${drawn.value}${drawn.suit}`)
   }
- 
+
   // ── Human: เลือกไพ่ที่จะทิ้ง ──────────────────────────────────────────
   const humanSelectCard = (idx: number) => {
     if (isAnimating || currentTurn !== 0) return
@@ -293,7 +348,7 @@ export default function KaengSingle() {
     if (players[0].hand.length !== 6) return
     setSelectedCard(idx === selectedCard ? null : idx)
   }
- 
+
   // ── Human: ทิ้งไพ่ที่เลือก ───────────────────────────────────────────
   const humanDiscard = () => {
     if (selectedCard === null || isAnimating) return
@@ -304,21 +359,21 @@ export default function KaengSingle() {
     const newHand   = p.hand.filter((_,i) => i !== selectedCard)
     const newDp     = [...discardPile, discarded]
     addLog(`คุณทิ้ง ${discarded.value}${discarded.suit}`)
- 
+
     const newPs = players.map((pl,i) => i===0 ? {...pl, hand:newHand, score:handScore(newHand)} : pl)
     setPlayers(newPs); setDiscardPile(newDp); setSelectedCard(null)
     const next = 1
     setCurrentTurn(next)
     setTimeout(() => doAiTurn(next, newPs, deck, newDp), 200)
   }
- 
+
   // ── Human: ประกาศ แคง ────────────────────────────────────────────────
   const humanDeclareKaeng = () => {
     if (isAnimating || currentTurn !== 0 || players[0].hand.length !== 5) return
     addLog(`คุณประกาศ แคง! (${players[0].score} แต้ม)`)
     endGame(players, deck, discardPile, 0, 'KAENG')
   }
- 
+
   // ── End game ──────────────────────────────────────────────────────────
   const endGame = async (
     ps: PlayerState[], _dk: Card[], _dp: Card[],
@@ -327,7 +382,7 @@ export default function KaengSingle() {
     setIsAnimating(true)
     setPhase('RESULT')
     setEndReason(reason)
- 
+
     let winner = declaredBy
     if (reason === 'KAENG') {
       // หาคนแต้มน้อยสุด
@@ -337,10 +392,10 @@ export default function KaengSingle() {
     // น็อค = ผู้น็อคชนะเลย
     setWinnerIdx(winner)
     setPlayers(ps)
- 
+
     const isPlayerWin = winner === 0
     let finalWin = 0
- 
+
     if (isPlayerWin) {
       // ชนะ = ได้ bet × 3 (จากผู้แพ้ทั้ง 3)
       // น็อค = ×4
@@ -362,7 +417,7 @@ export default function KaengSingle() {
       setResultMsg(msg)
       play('lose')
     }
- 
+
     await supabase.from('game_logs').insert([{
       user_id: profile!.id, game_name:'Kaeng',
       change_amount: isPlayerWin ? finalWin - bet : -bet,
@@ -371,11 +426,11 @@ export default function KaengSingle() {
     syncUser()
     setIsAnimating(false)
   }
- 
+
   const humanP    = players[0]
   const mustDiscard = humanP?.hand.length === 6
   const canDeclare  = humanP?.hand.length === 5 && currentTurn === 0 && phase === 'PLAYING'
- 
+
   return (
     <div className="flex min-h-screen w-full bg-[#080b12] text-white font-['Google_Sans'] overflow-y-auto"
       style={{ backgroundImage:"url('https://iili.io/qZ3dyUg.png')", backgroundSize:'cover', backgroundAttachment:'fixed' }}>
@@ -384,19 +439,19 @@ export default function KaengSingle() {
         .card-deal { animation: cardDeal .3s cubic-bezier(.22,1,.36,1) both }
         .scr::-webkit-scrollbar{width:3px} .scr::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:9px}
       `}</style>
- 
+
       <div className="flex-1 flex flex-col lg:flex-row p-4 md:p-6 gap-5 max-w-[1400px] mx-auto w-full">
- 
+
         {/* ── Board ────────────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col gap-4">
- 
+
           {/* Header */}
           <div className="flex items-center gap-3">
             <Link href="/games/kaeng/select" className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition text-gray-400 text-sm font-bold">← กลับ</Link>
             <h1 className="flex-1 text-center text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600">ไพ่แคง</h1>
             <span className="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-400 text-xs font-black border border-yellow-500/30">SOLO</span>
           </div>
- 
+
           {phase === 'IDLE' || phase === 'RESULT' ? (
             // ── IDLE / RESULT ──────────────────────────────────────────
             <div className="flex-1 flex flex-col items-center justify-center gap-6">
@@ -420,7 +475,7 @@ export default function KaengSingle() {
                   </div>
                 </div>
               )}
- 
+
               {/* Bet + Start */}
               <div className="bg-black/80 rounded-3xl border border-white/8 p-5 w-full max-w-md flex flex-col gap-4">
                 <div className="flex justify-between items-center px-4 py-2.5 bg-white/5 rounded-2xl border border-white/8">
@@ -440,11 +495,11 @@ export default function KaengSingle() {
                 </button>
               </div>
             </div>
- 
+
           ) : (
             // ── PLAYING ────────────────────────────────────────────────
             <div className="flex flex-col gap-4">
- 
+
               {/* AI players (top 3) */}
               <div className="grid grid-cols-3 gap-3">
                 {players.slice(1).map((p, i) => {
@@ -466,7 +521,7 @@ export default function KaengSingle() {
                   )
                 })}
               </div>
- 
+
               {/* Deck + Discard pile */}
               <div className="flex items-center justify-center gap-6 py-2">
                 <div className="flex flex-col items-center gap-1">
@@ -481,7 +536,7 @@ export default function KaengSingle() {
                   <span className="text-[10px] text-gray-600 font-bold">กองทิ้ง</span>
                 </div>
               </div>
- 
+
               {/* Human hand */}
               <div className={`bg-black/60 rounded-2xl border p-4 transition-all ${currentTurn===0 ? 'border-yellow-500/30' : 'border-white/8'}`}>
                 <div className="flex items-center justify-between mb-3">
@@ -502,7 +557,7 @@ export default function KaengSingle() {
                   ))}
                 </div>
               </div>
- 
+
               {/* Action buttons */}
               <div className="bg-black/80 rounded-2xl border border-white/8 p-4 flex flex-col gap-3">
                 {currentTurn !== 0 ? (
@@ -522,7 +577,7 @@ export default function KaengSingle() {
                     </button>
                     <button onClick={humanFlow} disabled={!canFlow || isAnimating}
                       className={`py-4 font-black rounded-xl text-base transition active:scale-95 ${canFlow ? 'bg-yellow-500 hover:bg-yellow-400 text-black' : 'bg-white/5 text-gray-600 cursor-not-allowed'}`}>
-                      ไหล {canFlow && '✓'}
+                      {canFlow && canSlap(players[0]?.hand??[], discardPile[discardPile.length-1]) ? 'ตบ! 🎉' : `ไหล ${canFlow ? '✓' : ''}`}
                     </button>
                     <button onClick={humanDeclareKaeng} disabled={!canDeclare || isAnimating}
                       className="py-4 bg-green-700 hover:bg-green-600 text-white font-black rounded-xl text-base transition active:scale-95 disabled:opacity-30">
@@ -534,10 +589,10 @@ export default function KaengSingle() {
             </div>
           )}
         </div>
- 
+
         {/* ── Sidebar ──────────────────────────────────────────────────── */}
         <div className="w-full lg:w-72 flex flex-col gap-4 shrink-0">
- 
+
           {/* Score board */}
           {phase === 'PLAYING' && (
             <div className="bg-black/70 rounded-2xl border border-white/8 p-4">
@@ -552,7 +607,7 @@ export default function KaengSingle() {
               ))}
             </div>
           )}
- 
+
           {/* Log */}
           <div className="bg-black/70 rounded-2xl border border-white/8 p-4 flex flex-col gap-2 h-48 lg:flex-1">
             <p className="text-xs font-black text-gray-600 uppercase tracking-widest">📋 บันทึกการเล่น</p>
@@ -563,7 +618,7 @@ export default function KaengSingle() {
               }
             </div>
           </div>
- 
+
           {/* Rules */}
           <div className="bg-black/70 rounded-2xl border border-white/8 p-4">
             <p className="text-xs font-black text-yellow-600 uppercase tracking-widest mb-3">กติกา</p>
@@ -576,13 +631,13 @@ export default function KaengSingle() {
               <p><span className="text-yellow-600">น็อค</span> — ไพ่หมดมือ ชนะทันที</p>
             </div>
           </div>
- 
+
           <Link href="/games/kaeng/multiplayer"
             className="block text-center py-3 rounded-2xl border border-purple-500/30 bg-purple-900/15 hover:bg-purple-900/25 text-purple-300 font-black text-sm transition">
             👥 เล่น Multiplayer →
           </Link>
         </div>
- 
+
       </div>
     </div>
   )
