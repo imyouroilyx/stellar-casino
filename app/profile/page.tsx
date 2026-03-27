@@ -112,7 +112,7 @@ export default function ProfilePage() {
     { key: 'Slot', name: 'Slot Machine', icon: '🎰' },
     { key: 'Wheel', name: 'Stellar Wheel', icon: '🎡' },
     { key: 'Hilo', name: 'Stellar Hilo', icon: '🎲' },
-    { key: 'Fish Prawn Crab', name: 'น้ำเต้าปูปลา', icon: '🦀' },
+    { key: 'Fish Prawn Crab', name: 'เดอะล็อตโต้', icon: '💵' },
     { key: 'Pokdeng', name: 'ป๊อกเด้ง', icon: '🃏' },
     { key: 'Kaeng', name: 'ไพ่แคง', icon: '🎴' },
   ]
