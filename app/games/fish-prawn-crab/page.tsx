@@ -15,7 +15,7 @@ const ANIMALS = [
 
 export default function HooHeyHow() {
   const { profile, syncUser } = useUser()
-  const [result, setResult] = useState(['แวมไพร์', 'เงือก', 'ผีเสื้อ'])
+  const [result, setResult] = useState(['แวมไพร์', 'เงือก', 'หมาป่า'])
   const [isRolling, setIsRolling] = useState(false)
   const [bets, setBets] = useState<Record<string, number>>({})
   const [currentChip, setCurrentChip] = useState(100)
