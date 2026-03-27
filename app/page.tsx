@@ -1,9 +1,24 @@
-// app/page.tsx
 'use client'
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export default function HomePage() {
+  const [leaderboard, setLeaderboard] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      // ดึงข้อมูลผู้เล่นทุกคน เรียงตามเงินจากมากไปน้อย
+      const { data } = await supabase
+        .from('profiles')
+        .select('username, balance, avatar_url')
+        .order('balance', { ascending: false })
+      
+      if (data) setLeaderboard(data)
+    }
+    fetchLeaderboard()
+  }, [])
+
   const games = [
     { 
       id: 1, 
@@ -45,6 +60,11 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col bg-black text-white font-['Google_Sans'] min-h-screen">
+      {/* ─── Styles ซ่อน Scrollbar ────────────────────────────────────────── */}
+      <style>{`
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
 
       {/* ─── Banner ─────────────────────────────────────────────────────── */}
       <section className="relative bg-[#0a0a0a] border-b border-gray-900 flex items-center justify-center overflow-hidden
@@ -159,6 +179,60 @@ export default function HomePage() {
               </div>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* ─── Leaderboard Dashboard ──────────────────────────────────────── */}
+      <section className="max-w-[1200px] mx-auto w-full px-4 sm:px-6 md:px-8 lg:px-12 pb-16">
+        <h2 className="font-['Google_Sans'] font-bold text-yellow-600 uppercase tracking-[0.2em]
+                       border-l-2 sm:border-l-4 border-yellow-600 pl-3 sm:pl-6 leading-none
+                       text-[10px] sm:text-xs mb-6 sm:mb-8 md:mb-10">
+          Wealth Leaderboard — ทำเนียบมหาเศรษฐี
+        </h2>
+
+        {/* กรอบ Dashboard ซ่อน scrollbar */}
+        <div className="bg-[#080808] border border-gray-900 rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl 
+                        h-[400px] overflow-y-auto hide-scroll relative">
+          
+          <div className="flex flex-col gap-3">
+            {leaderboard.map((user, index) => (
+              <div key={index} className="flex items-center justify-between p-3 sm:p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.06] transition-colors">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  {/* อันดับ */}
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-black text-xs sm:text-sm shrink-0
+                    ${index === 0 ? 'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)]' :
+                      index === 1 ? 'bg-gray-300 text-black' :
+                      index === 2 ? 'bg-orange-400 text-black' : 'bg-gray-800 text-white'}`}>
+                    #{index + 1}
+                  </div>
+                  
+                  {/* รูปโปรไฟล์ */}
+                  <img 
+                    src={user.avatar_url || 'https://iili.io/qQNVmS1.png'} 
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border border-gray-700" 
+                    alt="avatar" 
+                  />
+                  
+                  {/* ชื่อ */}
+                  <div className="font-bold text-sm sm:text-base text-white truncate max-w-[120px] sm:max-w-[200px] md:max-w-[300px]">
+                    {user.username}
+                  </div>
+                </div>
+
+                {/* จำนวนเงิน */}
+                <div className="font-mono font-black text-yellow-500 text-sm sm:text-lg">
+                  ${(user.balance || 0).toLocaleString()}
+                </div>
+              </div>
+            ))}
+
+            {/* สถานะโหลดข้อมูล */}
+            {leaderboard.length === 0 && (
+              <div className="text-center text-gray-600 text-xs sm:text-sm py-10 font-bold uppercase tracking-widest animate-pulse">
+                Loading Data...
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
