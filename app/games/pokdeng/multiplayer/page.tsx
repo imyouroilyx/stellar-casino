@@ -4,22 +4,22 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-
+ 
 // ─── Constants & Types ────────────────────────────────────────────────────────
 const SUITS = ['♠', '♥', '♦', '♣'] as const
 const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const
 const MAX_PLAYERS = 6
 const MIN_BET = 10
-
+ 
 type Card = { suit: string; value: string; score: number }
 type PlayerAction = 'IDLE' | 'BET_PLACED' | 'WAITING_CARDS' | 'DECIDING' | 'STAND' | 'HIT' | 'DONE'
 type PlayerResult = 'WIN' | 'LOSE' | 'DRAW' | null
 type RoomPhase = 'LOBBY' | 'BETTING' | 'DEALING' | 'PLAYER_TURNS' | 'BANKER_TURN' | 'RESULT'
-
+ 
 interface PlayerState {
   id: string
   username: string
-  avatar_url?: string // ✅ เพิ่มข้อมูลรูปโปรไฟล์
+  avatar_url?: string
   balance: number
   cards: Card[]
   bet: number
@@ -28,7 +28,7 @@ interface PlayerState {
   resultDetail: string
   isOnline: boolean
 }
-
+ 
 interface RoomState {
   id: string
   code: string
@@ -41,7 +41,7 @@ interface RoomState {
   roundNumber: number
   rotateBanker: boolean
 }
-
+ 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 function makeCard(): Card {
   const suit = SUITS[Math.floor(Math.random() * SUITS.length)]
@@ -49,11 +49,11 @@ function makeCard(): Card {
   const score = value === 'A' ? 1 : ['10', 'J', 'Q', 'K'].includes(value) ? 0 : parseInt(value)
   return { suit, value, score }
 }
-
+ 
 function calcScore(cards: Card[]): number {
   return cards.reduce((s, c) => s + c.score, 0) % 10
 }
-
+ 
 function getHandInfo(cards: Card[]): { mult: number; label: string } {
   if (cards.length === 2) {
     if (cards[0].suit === cards[1].suit || cards[0].value === cards[1].value)
@@ -66,15 +66,15 @@ function getHandInfo(cards: Card[]): { mult: number; label: string } {
   }
   return { mult: 1, label: 'ปกติ' }
 }
-
+ 
 function isPok(cards: Card[]): boolean {
   return cards.length === 2 && calcScore(cards) >= 8
 }
-
+ 
 function genCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
-
+ 
 function resolveResult(playerCards: Card[], bankerCards: Card[]): { result: PlayerResult; detail: string } {
   const ps = calcScore(playerCards), bs = calcScore(bankerCards)
   const { label } = getHandInfo(playerCards)
@@ -82,7 +82,7 @@ function resolveResult(playerCards: Card[], bankerCards: Card[]): { result: Play
   if (ps < bs) return { result: 'LOSE', detail: label }
   return { result: 'DRAW', detail: 'เสมอ' }
 }
-
+ 
 // ─── Card Component ───────────────────────────────────────────────────────────
 function CardUI({ card, hidden = false, small = false }: { card?: Card; hidden?: boolean; small?: boolean }) {
   const base = small
@@ -102,7 +102,7 @@ function CardUI({ card, hidden = false, small = false }: { card?: Card; hidden?:
     </div>
   )
 }
-
+ 
 function ScoreBadge({ score, highlight }: { score: number; highlight?: boolean }) {
   return (
     <span className={`text-xs font-black px-2 py-0.5 rounded-full ${highlight ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/40' : 'bg-white/10 text-gray-400'}`}>
@@ -110,12 +110,12 @@ function ScoreBadge({ score, highlight }: { score: number; highlight?: boolean }
     </span>
   )
 }
-
+ 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PokDengMultiplayer() {
   const router = useRouter()
   const { profile, syncUser } = useUser()
-
+ 
   const [screen, setScreen] = useState<'LOBBY_LIST' | 'ROOM'>('LOBBY_LIST')
   const [lobbyRooms, setLobbyRooms] = useState<{ id: string; code: string; playerCount: number; hostName: string }[]>([])
   const [joinCodeInput, setJoinCodeInput] = useState('')
@@ -124,13 +124,15 @@ export default function PokDengMultiplayer() {
   const [toast, setToast] = useState('')
   const [chatInput, setChatInput] = useState('')
   const [chatLog, setChatLog] = useState<{ uid: string; name: string; msg: string; ts: number }[]>([])
-
+  // ✅ แยก loading state สำหรับการวางเดิมพัน ป้องกันกดซ้ำ
+  const [isBetting, setIsBetting] = useState(false)
+ 
   const [room, setRoom] = useState<RoomState | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const roomRef = useRef<RoomState | null>(null)
-
+ 
   const snd = useRef<{ flip?: HTMLAudioElement; win?: HTMLAudioElement; lose?: HTMLAudioElement; shuffle?: HTMLAudioElement }>({})
-
+ 
   useEffect(() => {
     snd.current.flip = new Audio('/sounds/Card-flip.wav')
     snd.current.win = new Audio('/sounds/Win.wav')
@@ -138,15 +140,15 @@ export default function PokDengMultiplayer() {
     snd.current.shuffle = new Audio('/sounds/Card-shuffle.wav')
     fetchLobby()
   }, [])
-
+ 
   const play = (key: keyof typeof snd.current) => {
     const a = snd.current[key]; if (a) { a.currentTime = 0; a.play().catch(() => {}) }
   }
-
+ 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
-
+ 
   useEffect(() => { roomRef.current = room }, [room])
-
+ 
   // ─── Fetch Lobby ───────────────────────────────────────────────────────────
   const fetchLobby = async () => {
     const { data } = await supabase
@@ -163,15 +165,15 @@ export default function PokDengMultiplayer() {
       })))
     }
   }
-
+ 
   // ─── Subscribe: Postgres Changes + Broadcast + Presence ───────────────────
   const subscribeRoom = useCallback((roomId: string) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current)
-
+ 
     const ch = supabase.channel(`pokdeng:${roomId}`, {
       config: { presence: { key: profile?.id ?? 'anon' } },
     })
-
+ 
     ch.on('postgres_changes', {
       event: '*', schema: 'public', table: 'pokdeng_rooms', filter: `id=eq.${roomId}`,
     }, ({ new: updated }) => {
@@ -190,14 +192,13 @@ export default function PokDengMultiplayer() {
         else if (me?.result === 'LOSE') play('lose')
       }
     })
-
+ 
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
-      // ✅ กรองข้อความตัวเองออก (เพราะเราแอดเข้า ChatLog ทันทีตอนกดส่งแล้ว)
       if (payload.uid !== profile?.id) {
         setChatLog(prev => [...prev.slice(-99), payload])
       }
     })
-
+ 
     ch.on('presence', { event: 'sync' }, () => {
       const onlineIds = new Set(Object.keys(ch.presenceState()))
       setRoom(prev => prev ? {
@@ -205,30 +206,30 @@ export default function PokDengMultiplayer() {
         players: prev.players.map(p => ({ ...p, isOnline: onlineIds.has(p.id) })),
       } : prev)
     })
-
+ 
     ch.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') await ch.track({ userId: profile?.id, at: Date.now() })
     })
-
+ 
     channelRef.current = ch
   }, [profile])
-
-  // ─── DB helper (✅ เพิ่มการเช็ค Error ดักไว้เลย) ─────────────────────────
+ 
+  // ─── DB helper ────────────────────────────────────────────────────────────
   const updateRoom = async (patch: Record<string, unknown>) => {
     if (!roomRef.current) return
     const { error } = await supabase.from('pokdeng_rooms').update(patch).eq('id', roomRef.current.id)
     if (error) {
-      console.error("Update Room Error:", error);
-      alert("❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: " + error.message);
+      console.error("Update Room Error:", error)
+      showToast("❌ เกิดข้อผิดพลาด: " + error.message)
     }
   }
-
+ 
   // ─── Create Room ──────────────────────────────────────────────────────────
   const createRoom = async () => {
     if (!profile) return showToast('กรุณาล็อกอินก่อน')
     const me: PlayerState = {
       id: profile.id, username: profile.username ?? 'ผู้เล่น',
-      avatar_url: profile.avatar_url, // ✅ เก็บรูปเข้า DB ด้วย
+      avatar_url: profile.avatar_url,
       balance: profile.balance, cards: [], bet: 0,
       action: 'IDLE', result: null, resultDetail: '', isOnline: true,
     }
@@ -238,7 +239,7 @@ export default function PokDengMultiplayer() {
       round_number: 1, rotate_banker: rotateBanker,
     }]).select().single()
     if (error || !data) return showToast('สร้างห้องไม่สำเร็จ')
-    
+ 
     const parsed: RoomState = {
       id: data.id, code: data.code, hostId: data.host_id, bankerId: data.banker_id,
       phase: data.phase, players: data.players, bankerCards: data.banker_cards,
@@ -246,7 +247,7 @@ export default function PokDengMultiplayer() {
     }
     setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM')
   }
-
+ 
   // ─── Join Room ─────────────────────────────────────────────────────────────
   const joinRoom = async (roomId?: string, code?: string) => {
     if (!profile) return showToast('กรุณาล็อกอินก่อน')
@@ -254,11 +255,11 @@ export default function PokDengMultiplayer() {
     const { data, error } = roomId
       ? await q.eq('id', roomId).single()
       : await q.eq('code', (code || joinCodeInput).toUpperCase()).single()
-      
+ 
     if (error || !data) return showToast('ไม่พบห้อง')
     if (data.phase !== 'LOBBY' && !(data.players as PlayerState[]).find(p => p.id === profile.id))
       return showToast('เกมนี้เริ่มไปแล้ว')
-
+ 
     const existing = (data.players as PlayerState[]).find(p => p.id === profile.id)
     if (existing) {
       const parsed: RoomState = {
@@ -269,10 +270,10 @@ export default function PokDengMultiplayer() {
       setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM'); return
     }
     if ((data.players as PlayerState[]).length >= MAX_PLAYERS) return showToast('ห้องเต็มแล้ว!')
-    
+ 
     const me: PlayerState = {
       id: profile.id, username: profile.username ?? 'ผู้เล่น',
-      avatar_url: profile.avatar_url, // ✅ เก็บรูปเข้า DB ด้วย
+      avatar_url: profile.avatar_url,
       balance: profile.balance, cards: [], bet: 0,
       action: 'IDLE', result: null, resultDetail: '', isOnline: true,
     }
@@ -285,7 +286,7 @@ export default function PokDengMultiplayer() {
     }
     setRoom(parsed); subscribeRoom(data.id); setScreen('ROOM')
   }
-
+ 
   // ─── Leave Room ────────────────────────────────────────────────────────────
   const leaveRoom = async () => {
     if (!room || !profile) return
@@ -300,45 +301,96 @@ export default function PokDengMultiplayer() {
     channelRef.current && supabase.removeChannel(channelRef.current)
     setRoom(null); setScreen('LOBBY_LIST'); fetchLobby()
   }
-
+ 
   // ─── Start Round (Host) ────────────────────────────────────────────────────
   const startRound = async () => {
     if (!room || !profile) return
     if (room.hostId !== profile.id) return showToast('เฉพาะเจ้าของห้องเท่านั้นที่เริ่มเกมได้')
     if (room.players.length < 2) return showToast('ต้องมีผู้เล่นอย่างน้อย 2 คน')
-    
+ 
     play('shuffle')
     const reset = room.players.map(p => ({
       ...p, cards: [], bet: 0, action: 'IDLE' as PlayerAction, result: null, resultDetail: '',
     }))
-    
+ 
     await updateRoom({ phase: 'BETTING', players: reset, banker_cards: [], banker_action: 'IDLE' })
   }
-
+ 
   // ─── Place Bet ─────────────────────────────────────────────────────────────
+  // ✅ แก้ไขหลัก: ดึงข้อมูลจาก DB โดยตรงก่อน update เพื่อป้องกัน race condition
   const placeBet = async () => {
     if (!room || !profile) return
+    if (isBetting) return // ป้องกันกดซ้ำ
     if (profile.id === room.bankerId) return showToast('เจ้ามือไม่ต้องวางเดิมพัน')
     if (betInput < MIN_BET) return showToast(`เดิมพันขั้นต่ำ $${MIN_BET}`)
-    if (betInput > profile.balance) return showToast('ยอดเงินไม่พอ')
-    const updatedPlayers = room.players.map(p =>
-      p.id === profile.id ? { ...p, bet: betInput, action: 'BET_PLACED' as PlayerAction } : p
-    )
-    await updateRoom({ players: updatedPlayers })
-    const nonBankers = updatedPlayers.filter(p => p.id !== room.bankerId)
-    const allBet = nonBankers.every(p => p.action === 'BET_PLACED')
-    if (allBet && room.hostId === profile.id) await dealAllCards(updatedPlayers)
+ 
+    setIsBetting(true)
+    try {
+      // ✅ ดึงข้อมูล room และ profile ล่าสุดจาก DB ก่อนเสมอ
+      const [{ data: freshRoom, error: roomErr }, { data: freshProfile, error: profErr }] = await Promise.all([
+        supabase.from('pokdeng_rooms').select('*').eq('id', room.id).single(),
+        supabase.from('profiles').select('balance').eq('id', profile.id).single(),
+      ])
+ 
+      if (roomErr || !freshRoom) { showToast('ไม่สามารถโหลดข้อมูลห้องได้'); return }
+      if (profErr || !freshProfile) { showToast('ไม่สามารถโหลดข้อมูลผู้เล่นได้'); return }
+ 
+      // ✅ ตรวจสอบ phase จาก DB ล่าสุด ไม่ใช่จาก state
+      if (freshRoom.phase !== 'BETTING') return showToast('ไม่ได้อยู่ในช่วงวางเดิมพัน')
+ 
+      // ✅ ตรวจสอบว่าผู้เล่นยังไม่ได้วางเดิมพัน (ป้องกัน double bet)
+      const freshPlayers: PlayerState[] = freshRoom.players ?? []
+      const meInRoom = freshPlayers.find(p => p.id === profile.id)
+      if (!meInRoom) { showToast('คุณไม่ได้อยู่ในห้องนี้'); return }
+      if (meInRoom.action === 'BET_PLACED') { showToast('คุณวางเดิมพันไปแล้ว'); return }
+ 
+      // ✅ ตรวจสอบ balance จาก DB ล่าสุด
+      const currentBalance = freshProfile.balance
+      if (betInput > currentBalance) return showToast(`ยอดเงินไม่พอ (มี $${currentBalance.toLocaleString()})`)
+ 
+      // ✅ อัปเดต players array โดยใช้ข้อมูลล่าสุดจาก DB
+      const updatedPlayers = freshPlayers.map(p =>
+        p.id === profile.id ? { ...p, bet: betInput, action: 'BET_PLACED' as PlayerAction } : p
+      )
+ 
+      const { error: updateErr } = await supabase
+        .from('pokdeng_rooms')
+        .update({ players: updatedPlayers })
+        .eq('id', room.id)
+ 
+      if (updateErr) { showToast('วางเดิมพันไม่สำเร็จ: ' + updateErr.message); return }
+ 
+      // ✅ ตรวจสอบว่าทุกคนวางเดิมพันครบหรือยัง (ใช้ข้อมูลล่าสุด)
+      const nonBankersLatest = updatedPlayers.filter(p => p.id !== freshRoom.banker_id)
+      const allBetNow = nonBankersLatest.length > 0 && nonBankersLatest.every(p => p.action === 'BET_PLACED')
+ 
+      // ✅ host เป็นคนแจกไพ่ แต่ต้องรอให้ state update จาก realtime ก่อน
+      // ใช้ freshRoom.host_id เพื่อตรวจสอบ
+      if (allBetNow && freshRoom.host_id === profile.id) {
+        await dealAllCards(updatedPlayers, freshRoom.banker_id, room.id)
+      }
+    } finally {
+      setIsBetting(false)
+    }
   }
-
+ 
   // ─── Deal Cards ────────────────────────────────────────────────────────────
-  const dealAllCards = async (players: PlayerState[]) => {
-    if (!roomRef.current) return
+  // ✅ แก้ไข: รับ bankerId และ roomId เป็น parameter แทนการอ่านจาก roomRef เพื่อความแม่นยำ
+  const dealAllCards = async (
+    players: PlayerState[],
+    bankerId?: string,
+    roomId?: string
+  ) => {
+    const targetRoomId = roomId ?? roomRef.current?.id
+    const targetBankerId = bankerId ?? roomRef.current?.bankerId
+    if (!targetRoomId || !targetBankerId) return
+ 
     play('shuffle')
     const bankerCards = [makeCard(), makeCard()]
     const bPok = isPok(bankerCards)
-
+ 
     const dealt = players.map(p => {
-      if (p.id === roomRef.current!.bankerId) return { ...p, cards: [], action: 'IDLE' as PlayerAction }
+      if (p.id === targetBankerId) return { ...p, cards: [], action: 'IDLE' as PlayerAction }
       const cards = [makeCard(), makeCard()]
       const pPok = isPok(cards)
       if (bPok || pPok) {
@@ -347,38 +399,55 @@ export default function PokDengMultiplayer() {
       }
       return { ...p, cards, action: 'DECIDING' as PlayerAction }
     })
-
-    const allDone = dealt.filter(p => p.id !== roomRef.current!.bankerId).every(p => p.action === 'DONE')
-    await updateRoom({
+ 
+    const allDone = dealt.filter(p => p.id !== targetBankerId).every(p => p.action === 'DONE')
+ 
+    const { error } = await supabase.from('pokdeng_rooms').update({
       phase: allDone ? 'RESULT' : 'PLAYER_TURNS',
-      players: dealt, banker_cards: bankerCards,
+      players: dealt,
+      banker_cards: bankerCards,
       banker_action: bPok || allDone ? 'DONE' : 'DECIDING',
-    })
-    if (allDone) await finalize(dealt, bankerCards)
+    }).eq('id', targetRoomId)
+ 
+    if (error) { showToast('แจกไพ่ไม่สำเร็จ: ' + error.message); return }
+ 
+    if (allDone) await finalizeByIds(dealt, bankerCards, targetBankerId, targetRoomId)
   }
-
+ 
   // ─── Player Hit ────────────────────────────────────────────────────────────
   const playerHit = async () => {
     if (!room || !profile) return
     play('flip')
     const newCard = makeCard()
-    const updated = room.players.map(p =>
+ 
+    // ✅ ดึง room ล่าสุดก่อน update
+    const { data: freshRoom } = await supabase.from('pokdeng_rooms').select('players').eq('id', room.id).single()
+    if (!freshRoom) return showToast('โหลดข้อมูลไม่สำเร็จ')
+ 
+    const freshPlayers: PlayerState[] = freshRoom.players ?? []
+    const updated = freshPlayers.map(p =>
       p.id === profile.id ? { ...p, cards: [...p.cards, newCard], action: 'HIT' as PlayerAction } : p
     )
     await updateRoom({ players: updated })
     await checkAllActed(updated, room.bankerCards)
   }
-
+ 
   // ─── Player Stand ──────────────────────────────────────────────────────────
   const playerStand = async () => {
     if (!room || !profile) return
-    const updated = room.players.map(p =>
+ 
+    // ✅ ดึง room ล่าสุดก่อน update
+    const { data: freshRoom } = await supabase.from('pokdeng_rooms').select('players').eq('id', room.id).single()
+    if (!freshRoom) return showToast('โหลดข้อมูลไม่สำเร็จ')
+ 
+    const freshPlayers: PlayerState[] = freshRoom.players ?? []
+    const updated = freshPlayers.map(p =>
       p.id === profile.id ? { ...p, action: 'STAND' as PlayerAction } : p
     )
     await updateRoom({ players: updated })
     await checkAllActed(updated, room.bankerCards)
   }
-
+ 
   const checkAllActed = async (players: PlayerState[], bankerCards: Card[]) => {
     if (!roomRef.current) return
     const nonBankers = players.filter(p => p.id !== roomRef.current!.bankerId)
@@ -386,33 +455,46 @@ export default function PokDengMultiplayer() {
       await updateRoom({ phase: 'BANKER_TURN', banker_action: 'DECIDING' })
     }
   }
-
+ 
   // ─── Banker Hit ────────────────────────────────────────────────────────────
   const bankerHit = async () => {
     if (!room || !profile || profile.id !== room.bankerId) return
     play('flip')
-    const newBankerCards = [...room.bankerCards, makeCard()]
+ 
+    // ✅ ดึง banker_cards ล่าสุดจาก DB
+    const { data: freshRoom } = await supabase.from('pokdeng_rooms').select('banker_cards').eq('id', room.id).single()
+    if (!freshRoom) return showToast('โหลดข้อมูลไม่สำเร็จ')
+ 
+    const newBankerCards = [...(freshRoom.banker_cards ?? []), makeCard()]
     await updateRoom({ banker_cards: newBankerCards })
   }
-
+ 
   // ─── Banker Stand → Finalize ───────────────────────────────────────────────
   const bankerStand = async () => {
     if (!room || !profile || profile.id !== room.bankerId) return
     await updateRoom({ banker_action: 'STAND' })
     await finalize(room.players, room.bankerCards)
   }
-
-  // ─── Finalize ─────────────────────────────────────────────────────────────
+ 
+  // ─── Finalize (ใช้ roomRef) ────────────────────────────────────────────────
   const finalize = async (players: PlayerState[], bankerCards: Card[]) => {
     if (!roomRef.current) return
-    const bankerId = roomRef.current.bankerId
-
+    await finalizeByIds(players, bankerCards, roomRef.current.bankerId, roomRef.current.id)
+  }
+ 
+  // ✅ แก้ไข: แยก finalize ออกมาเพื่อรับ bankerId / roomId โดยตรง ไม่ต้องพึ่ง ref
+  const finalizeByIds = async (
+    players: PlayerState[],
+    bankerCards: Card[],
+    bankerId: string,
+    roomId: string
+  ) => {
     const resolved = players.map(p => {
       if (p.id === bankerId || p.action === 'DONE') return p
       const { result, detail } = resolveResult(p.cards, bankerCards)
       return { ...p, action: 'DONE' as PlayerAction, result, resultDetail: detail }
     })
-
+ 
     let bankerNet = 0
     for (const p of resolved) {
       if (p.id === bankerId || !p.result) continue
@@ -420,9 +502,11 @@ export default function PokDengMultiplayer() {
       if (p.result === 'WIN') bankerNet -= p.bet * mult
       else if (p.result === 'LOSE') bankerNet += p.bet * mult
     }
-
-    await updateRoom({ phase: 'RESULT', players: resolved, banker_action: 'DONE' })
-
+ 
+    await supabase.from('pokdeng_rooms').update({
+      phase: 'RESULT', players: resolved, banker_action: 'DONE'
+    }).eq('id', roomId)
+ 
     for (const p of resolved) {
       if (p.id === bankerId) continue
       const { mult } = getHandInfo(p.cards)
@@ -448,7 +532,7 @@ export default function PokDengMultiplayer() {
     }
     syncUser()
   }
-
+ 
   // ─── Next Round ────────────────────────────────────────────────────────────
   const nextRound = async () => {
     if (!room || !profile || room.hostId !== profile.id) return
@@ -465,19 +549,16 @@ export default function PokDengMultiplayer() {
       banker_id: nextBankerId, round_number: room.roundNumber + 1,
     })
   }
-
+ 
   // ─── Send Chat ─────────────────────────────────────────────────────────────
   const sendChat = async () => {
     if (!chatInput.trim() || !room || !profile) return
     const payload = { uid: profile.id, name: profile.username ?? 'ผู้เล่น', msg: chatInput.trim(), ts: Date.now() }
-    
-    // ✅ อัปเดตแชทตัวเองลงจอก่อนเลย ไม่ต้องรอ Server ตอบกลับ (เร็วปรื๊ด!)
     setChatLog(prev => [...prev.slice(-99), payload])
-    
     await channelRef.current?.send({ type: 'broadcast', event: 'chat', payload })
     setChatInput('')
   }
-
+ 
   // ─── Derived ──────────────────────────────────────────────────────────────
   const me = room?.players.find(p => p.id === profile?.id)
   const banker = room?.players.find(p => p.id === room?.bankerId)
@@ -488,7 +569,7 @@ export default function PokDengMultiplayer() {
   const myTurn = room?.phase === 'PLAYER_TURNS' && me?.action === 'DECIDING' && !isBanker
   const bankerTurn = room?.phase === 'BANKER_TURN' && isBanker
   const nextBankerName = room ? room.players[(room.players.findIndex(p => p.id === room.bankerId) + 1) % room.players.length]?.username : ''
-
+ 
   // ══════════════════════════════════════════════════════════════════════════
   //  LOBBY LIST
   // ══════════════════════════════════════════════════════════════════════════
@@ -502,9 +583,9 @@ export default function PokDengMultiplayer() {
           .scr::-webkit-scrollbar{width:3px}
           .scr::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:99px}
         `}</style>
-
+ 
         {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-black/95 border border-white/10 px-6 py-3 rounded-2xl font-bold text-sm shadow-2xl">{toast}</div>}
-
+ 
         <div className="w-full max-w-2xl mx-auto p-5 flex flex-col gap-6">
           <div className="flex items-center gap-3 pt-4">
             <button onClick={() => router.back()} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition text-gray-400 text-sm font-bold">← กลับ</button>
@@ -513,7 +594,7 @@ export default function PokDengMultiplayer() {
               <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">ป๊อกเด้ง · ผู้เล่นเป็นเจ้ามือ</p>
             </div>
           </div>
-
+ 
           <div className="bg-black/60 rounded-3xl border border-white/10 p-5 flex flex-col gap-4">
             <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest">สร้างห้องใหม่</h2>
             <label className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setRotateBanker(v => !v)}>
@@ -527,7 +608,7 @@ export default function PokDengMultiplayer() {
               🏠 สร้างห้อง
             </button>
           </div>
-
+ 
           <div className="bg-black/60 rounded-3xl border border-white/10 p-5 flex flex-col gap-3">
             <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest">เข้าด้วยรหัสห้อง</h2>
             <div className="flex gap-2">
@@ -540,7 +621,7 @@ export default function PokDengMultiplayer() {
               </button>
             </div>
           </div>
-
+ 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest">ห้องที่เปิดอยู่ ({lobbyRooms.length})</h2>
@@ -574,12 +655,12 @@ export default function PokDengMultiplayer() {
       </div>
     )
   }
-
+ 
   // ══════════════════════════════════════════════════════════════════════════
   //  ROOM
   // ══════════════════════════════════════════════════════════════════════════
   if (!room) return null
-
+ 
   return (
     <div className="flex min-h-screen w-full bg-[#07090f] text-white overflow-y-auto"
       style={{ backgroundImage: "url('https://iili.io/qZ3dyUg.png')", backgroundSize: 'cover', backgroundAttachment: 'fixed' }}>
@@ -593,14 +674,14 @@ export default function PokDengMultiplayer() {
         .scr::-webkit-scrollbar{width:3px}
         .scr::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:99px}
       `}</style>
-
+ 
       {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-black/95 border border-white/10 px-6 py-3 rounded-2xl font-bold text-sm shadow-2xl animate-bounce">{toast}</div>}
-
+ 
       <div className="flex-1 flex flex-col xl:flex-row gap-5 p-4 md:p-6 max-w-[1500px] mx-auto w-full">
-
+ 
         {/* ═══ MAIN BOARD ══════════════════════════════════════════════════ */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
-
+ 
           {/* Top bar */}
           <div className="flex items-center justify-between gap-3">
             <button onClick={leaveRoom} className="text-xs font-bold text-gray-600 hover:text-white px-3 py-2 bg-white/5 rounded-xl transition">← ออกห้อง</button>
@@ -626,14 +707,13 @@ export default function PokDengMultiplayer() {
             </div>
             <div className="text-right text-xs text-gray-600 font-bold">{room.players.length}/{MAX_PLAYERS}<br/>ผู้เล่น</div>
           </div>
-
+ 
           {/* ── Banker Zone ── */}
           <div className={`rounded-3xl border p-5 flex flex-col items-center gap-3 backdrop-blur-sm transition-all duration-300 ${
             isBanker && bankerTurn ? 'border-yellow-500/60 bg-yellow-900/10 my-glow' :
             isBanker ? 'border-yellow-500/30 bg-yellow-900/5' : 'border-white/10 bg-black/50'
           }`}>
             <div className="flex items-center gap-3">
-              {/* ✅ เพิ่มรูปโปรไฟล์เจ้ามือ */}
               <div className="relative shrink-0">
                 <img src={banker?.avatar_url || 'https://iili.io/qQNVmS1.png'} className="w-12 h-12 rounded-full object-cover border-2 border-yellow-500/50 shadow-lg" alt="avatar" />
                 <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-black ${banker?.isOnline ? 'bg-green-500' : 'bg-gray-600'}`} />
@@ -648,7 +728,7 @@ export default function PokDengMultiplayer() {
                 </p>
               </div>
             </div>
-
+ 
             <div className="flex gap-2 md:gap-3 mt-2">
               {room.bankerCards.length === 0
                 ? <div className="w-20 md:w-24 h-28 md:h-36 border-2 border-white/5 rounded-xl bg-black/20" />
@@ -656,11 +736,11 @@ export default function PokDengMultiplayer() {
                   <CardUI key={i} card={c} hidden={room.phase !== 'BANKER_TURN' && room.phase !== 'RESULT' && !isBanker} />
                 ))}
             </div>
-
+ 
             {room.bankerCards.length > 0 && (isBanker || room.phase === 'BANKER_TURN' || room.phase === 'RESULT') && (
               <ScoreBadge score={calcScore(room.bankerCards)} highlight />
             )}
-
+ 
             {bankerTurn && (
               <div className="flex gap-3 mt-1">
                 <button onClick={bankerHit} disabled={room.bankerCards.length >= 3}
@@ -677,7 +757,7 @@ export default function PokDengMultiplayer() {
               <p className="text-xs text-gray-600 animate-pulse font-bold">รอเจ้ามือตัดสิน...</p>
             )}
           </div>
-
+ 
           {/* ── Players Grid ── */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {nonBankers.map(p => {
@@ -691,12 +771,11 @@ export default function PokDengMultiplayer() {
                   ${p.result === 'LOSE' ? 'opacity-60' : ''}
                 `}>
                   <div className="flex items-center gap-2">
-                    {/* ✅ เพิ่มรูปโปรไฟล์ผู้เล่น */}
                     <div className="relative shrink-0">
                       <img src={p.avatar_url || 'https://iili.io/qQNVmS1.png'} className={`w-8 h-8 rounded-full object-cover border ${isMe ? 'border-yellow-500' : 'border-gray-700'}`} alt="avatar" />
                       <div className={`absolute bottom-0 -right-0.5 w-2.5 h-2.5 rounded-full border border-black ${p.isOnline ? 'bg-green-500' : 'bg-gray-600'}`} />
                     </div>
-                    
+ 
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs font-black truncate ${isMe ? 'text-yellow-400' : 'text-white'}`}>
                         {p.username}{isMe && ' (คุณ)'}
@@ -707,14 +786,14 @@ export default function PokDengMultiplayer() {
                       <span className="text-[10px] bg-yellow-500/15 text-yellow-400 px-1.5 py-0.5 rounded-md font-black border border-yellow-500/20 shrink-0">${p.bet}</span>
                     )}
                   </div>
-
+ 
                   {/* Cards */}
                   <div className="flex gap-1.5 h-14">
                     {p.cards.length === 0
                       ? <div className="flex-1 rounded-xl border border-white/5 bg-black/20 h-full" />
                       : p.cards.map((c, i) => <CardUI key={i} card={c} hidden={!showCards} small />)}
                   </div>
-
+ 
                   {/* Status */}
                   <div className="text-center text-[11px] font-black min-h-[16px]">
                     {p.result === 'WIN' && <span className="text-green-400">🏆 +${p.bet * getHandInfo(p.cards).mult} ({p.resultDetail})</span>}
@@ -730,7 +809,7 @@ export default function PokDengMultiplayer() {
               )
             })}
           </div>
-
+ 
           {/* ── Control Panel ── */}
           <div className="bg-black/85 rounded-3xl border border-white/10 p-5 shadow-2xl">
             {room.phase === 'LOBBY' && (
@@ -745,11 +824,10 @@ export default function PokDengMultiplayer() {
                   </div>
                 )}
                 {isHost ? (
-                  // ✅ อัปเดตเงื่อนไขปุ่มและเพิ่มการแจ้งเตือนถ้าระบบผิดพลาด
                   <button onClick={startRound} disabled={room.players.length < 2}
                     className={`w-full py-4 font-black rounded-2xl text-xl transition active:scale-95 ${
-                      room.players.length < 2 
-                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                      room.players.length < 2
+                        ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                         : 'bg-white hover:bg-yellow-400 text-black shadow-lg'
                     }`}>
                     {room.players.length < 2 ? `รอผู้เล่น... (${room.players.length}/2)` : '🎴 เริ่มเกม!'}
@@ -759,7 +837,8 @@ export default function PokDengMultiplayer() {
                 )}
               </div>
             )}
-
+ 
+            {/* ✅ แสดง panel วางเดิมพัน: ไม่ใช่เจ้ามือ และยังไม่ได้วาง */}
             {room.phase === 'BETTING' && !isBanker && me?.action !== 'BET_PLACED' && (
               <div className="flex flex-col gap-4">
                 <p className="text-xs font-black text-gray-500 uppercase tracking-widest text-center">💰 วางเดิมพัน</p>
@@ -776,19 +855,26 @@ export default function PokDengMultiplayer() {
                   ))}
                   <button onClick={() => setBetInput(MIN_BET)} className="px-3 py-2.5 bg-red-900/30 text-red-400 rounded-xl font-black text-sm">Reset</button>
                 </div>
-                <button onClick={placeBet}
-                  className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-2xl text-lg transition active:scale-95">
-                  ✅ ยืนยัน ${betInput}
+                {/* ✅ ปุ่มวางเดิมพันแสดง loading และ disabled ระหว่างรอ */}
+                <button
+                  onClick={placeBet}
+                  disabled={isBetting}
+                  className={`w-full py-4 font-black rounded-2xl text-lg transition active:scale-95 ${
+                    isBetting
+                      ? 'bg-yellow-700 text-yellow-200 cursor-not-allowed opacity-70'
+                      : 'bg-yellow-500 hover:bg-yellow-400 text-black'
+                  }`}>
+                  {isBetting ? '⏳ กำลังวางเดิมพัน...' : `✅ ยืนยัน $${betInput}`}
                 </button>
               </div>
             )}
-
+ 
             {room.phase === 'BETTING' && !isBanker && me?.action === 'BET_PLACED' && (
               <div className="text-center py-5 text-gray-600 font-black animate-pulse text-sm">
                 ✅ วางเดิมพันแล้ว รอผู้เล่นอื่น ({nonBankers.filter(p => p.action === 'BET_PLACED').length}/{nonBankers.length})
               </div>
             )}
-
+ 
             {room.phase === 'BETTING' && isBanker && (
               <div className="text-center flex flex-col items-center gap-3 py-2">
                 <p className="text-yellow-500 font-black text-lg">คุณคือเจ้ามือ 🏦</p>
@@ -796,14 +882,14 @@ export default function PokDengMultiplayer() {
                   รอผู้เล่นวางเดิมพัน ({nonBankers.filter(p => p.action === 'BET_PLACED').length}/{nonBankers.length})
                 </p>
                 {isHost && allBet && (
-                  <button onClick={() => dealAllCards(room.players)}
+                  <button onClick={() => dealAllCards(room.players, room.bankerId, room.id)}
                     className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-2xl text-base transition active:scale-95">
                     🃏 แจกไพ่ทันที!
                   </button>
                 )}
               </div>
             )}
-
+ 
             {myTurn && (
               <div className="flex flex-col gap-4">
                 <p className="text-center text-xs font-black text-yellow-400 uppercase tracking-widest animate-pulse">⭐ ตาของคุณ!</p>
@@ -819,26 +905,26 @@ export default function PokDengMultiplayer() {
                 </div>
               </div>
             )}
-
+ 
             {room.phase === 'PLAYER_TURNS' && !myTurn && !isBanker && (
               <div className="text-center py-5 text-gray-600 font-black animate-pulse text-sm">
                 {me?.action === 'STAND' ? '✋ คุณหยุดแล้ว รอผู้เล่นอื่น...' :
                  me?.action === 'HIT' ? '🃏 จั่วแล้ว รอผู้เล่นอื่น...' : 'รอผู้เล่นอื่นตัดสิน...'}
               </div>
             )}
-
+ 
             {room.phase === 'PLAYER_TURNS' && isBanker && (
               <div className="text-center py-5 text-gray-600 font-black animate-pulse text-sm">รอผู้เล่นทุกคนตัดสิน...</div>
             )}
-
+ 
             {room.phase === 'BANKER_TURN' && !isBanker && (
               <div className="text-center py-5 text-gray-600 font-black animate-pulse text-sm">รอเจ้ามือ {banker?.username} ตัดสิน...</div>
             )}
-
+ 
             {room.phase === 'DEALING' && (
               <div className="text-center py-5 text-gray-500 font-black animate-pulse">กำลังแจกไพ่...</div>
             )}
-
+ 
             {room.phase === 'RESULT' && (
               <div className="flex flex-col items-center gap-4">
                 <div className="w-full grid grid-cols-2 gap-2">
@@ -852,7 +938,7 @@ export default function PokDengMultiplayer() {
                     </div>
                   ))}
                 </div>
-
+ 
                 {me && me.id !== room.bankerId && me.result && (
                   <div className={`text-2xl md:text-3xl font-black animate-bounce ${me.result === 'WIN' ? 'text-green-400' : me.result === 'LOSE' ? 'text-red-400' : 'text-yellow-400'}`}>
                     {me.result === 'WIN'
@@ -862,7 +948,7 @@ export default function PokDengMultiplayer() {
                       : '🤝 เสมอ คืนทุน'}
                   </div>
                 )}
-
+ 
                 {isHost ? (
                   <button onClick={nextRound}
                     className="px-8 py-3 bg-white hover:bg-yellow-400 text-black font-black rounded-2xl text-base transition active:scale-95">
@@ -875,20 +961,19 @@ export default function PokDengMultiplayer() {
             )}
           </div>
         </div>
-
+ 
         {/* ═══ SIDEBAR ══════════════════════════════════════════════════════ */}
         <div className="w-full xl:w-64 flex flex-col gap-4 shrink-0">
-
+ 
           <div className="bg-black/70 rounded-3xl border border-white/10 p-4 flex flex-col gap-3">
             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">ผู้เล่น ({room.players.length}/{MAX_PLAYERS})</h3>
             {room.players.map(p => (
               <div key={p.id} className="flex items-center gap-2">
-                {/* ✅ เพิ่มรูปโปรไฟล์ผู้เล่นตรงแถบด้านข้าง */}
                 <div className="relative shrink-0">
                   <img src={p.avatar_url || 'https://iili.io/qQNVmS1.png'} className="w-6 h-6 rounded-full object-cover border border-gray-700" alt="avatar" />
                   <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#07090f] ${p.isOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
                 </div>
-                
+ 
                 <span className={`text-xs font-black flex-1 truncate ${p.id === profile?.id ? 'text-yellow-400' : 'text-white'}`}>
                   {p.username}
                   {p.id === room.bankerId && ' 🏦'}
@@ -898,7 +983,7 @@ export default function PokDengMultiplayer() {
               </div>
             ))}
           </div>
-
+ 
           <div className="bg-black/70 rounded-3xl border border-white/10 p-4 flex flex-col gap-2 h-56 xl:h-72">
             <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">💬 แชท</h3>
             <div className="flex-1 overflow-y-auto scr flex flex-col gap-1 min-h-0">
@@ -917,7 +1002,7 @@ export default function PokDengMultiplayer() {
               <button onClick={sendChat} className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-xs font-black transition">ส่ง</button>
             </div>
           </div>
-
+ 
           <div className="bg-black/70 rounded-3xl border border-white/10 p-4">
             <h3 className="text-xs font-black text-yellow-500 uppercase tracking-widest text-center mb-3">กติกา</h3>
             <div className="space-y-1.5 text-[11px] text-gray-500 font-bold">
