@@ -1,4 +1,3 @@
-// src/app/games/hilo/page.tsx
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -36,6 +35,7 @@ export default function StellarHilo() {
     }
   }
 
+  // ✅ แก้ไขบั๊กตรงนี้: บังคับให้ล้างการเดิมพันข้ามกลุ่มด้วย
   const placeBet = (type: string) => {
     if (isRolling) return
     setBets(prev => {
@@ -44,10 +44,16 @@ export default function StellarHilo() {
       const groupNumbers = ['1', '2', '3', '4', '5', '6'];
 
       if (groupMain.includes(type)) {
+        // ล้างกลุ่ม Main อื่นๆ
         groupMain.forEach(key => { if (key !== type) delete newBets[key]; });
+        // ล้างกลุ่มตัวเลขทิ้งทั้งหมด
+        groupNumbers.forEach(key => delete newBets[key]);
       }
       if (groupNumbers.includes(type)) {
+        // ล้างกลุ่มตัวเลขอื่นๆ
         groupNumbers.forEach(key => { if (key !== type) delete newBets[key]; });
+        // ล้างกลุ่ม Main ทิ้งทั้งหมด
+        groupMain.forEach(key => delete newBets[key]);
       }
       newBets[type] = (newBets[type] || 0) + currentChip;
       return newBets;
@@ -168,11 +174,11 @@ export default function StellarHilo() {
           
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-2">
              <div className="flex flex-wrap justify-center gap-2 md:gap-3 w-full md:w-auto">
-                {[10, 100, 500, 1000].map(val => (
-                  <button key={val} onClick={() => setCurrentChip(val)} className={`px-4 md:px-6 py-2 md:py-3 rounded-full font-black text-sm md:text-base transition-all duration-300 ${currentChip === val ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black scale-110 shadow-[0_0_15px_rgba(250,204,21,0.6)]' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}>
-                    ${val}
-                  </button>
-                ))}
+               {[10, 100, 500, 1000].map(val => (
+                 <button key={val} onClick={() => setCurrentChip(val)} className={`px-4 md:px-6 py-2 md:py-3 rounded-full font-black text-sm md:text-base transition-all duration-300 ${currentChip === val ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black scale-110 shadow-[0_0_15px_rgba(250,204,21,0.6)]' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}>
+                   ${val}
+                 </button>
+               ))}
              </div>
              <button onClick={clearBets} className="text-red-400 font-bold hover:text-red-300 uppercase text-xs md:text-sm bg-red-950/30 px-4 py-2 rounded-full border border-red-900/50 transition-colors">
                ล้างเดิมพัน
