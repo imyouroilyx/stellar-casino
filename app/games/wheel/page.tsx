@@ -261,51 +261,57 @@ export default function LuckyWheel() {
           {/* Wheel Section */}
           <div className="order-1 lg:order-2 w-full flex flex-col items-center space-y-4 md:space-y-6">
             
-            {/* Wheel Container */}
-            <div className="relative flex items-center justify-center w-full">
+            {/* 🔥 FIX: Wheel Container - เพิ่ม max-width และจัดกลาง */}
+            <div className="relative flex items-center justify-center w-full max-w-[500px] mx-auto">
               <div className="absolute left-[-15px] sm:left-[-20px] md:left-[-30px] lg:left-[-40px] z-30 text-3xl sm:text-4xl md:text-6xl lg:text-8xl text-yellow-400 drop-shadow-[0_0_25px_rgba(255,215,0,0.9)] animate-pulse">
                 ➽
               </div>
 
-              <div className="w-[260px] sm:w-[320px] md:w-[400px] lg:w-[500px] aspect-square rounded-full p-2 md:p-3 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center relative">
-                
-                <div 
-                  ref={wheelRef}
-                  className="w-full h-full rounded-full relative shadow-[inset_0_0_40px_rgba(0,0,0,0.8)] overflow-hidden"
-                  style={{ 
-                    background: `conic-gradient(${PRIZES.map((p, i) => `${p.color} ${i * (100 / PRIZES.length)}% ${(i + 1) * (100 / PRIZES.length)}%`).join(', ')})`
-                  }}
-                >
-                  {PRIZES.map((p, i) => {
-                    const rot = i * (360 / PRIZES.length) + (360 / PRIZES.length / 2);
-                    const isJackpot = p.label === 'JP';
-                    const isSpecial = p.label === 'x4' || p.label === 'x3';
-                    return (
-                      <React.Fragment key={i}>
-                        <div 
-                          className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 flex items-start justify-center pt-0.5 sm:pt-1 md:pt-2 z-20 origin-bottom"
-                          style={{ transform: `rotate(${rot}deg)` }}
-                        >
-                          <div className={`font-black uppercase tracking-tighter origin-top ${
-                            isJackpot 
-                              ? 'text-yellow-300 text-[8px] sm:text-[10px] md:text-xs lg:text-sm animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]' 
-                              : isSpecial
-                              ? 'text-white/80 text-[8px] sm:text-[10px] scale-[0.45] sm:scale-[0.5] md:scale-[0.6]'
-                              : 'text-white/50 text-[8px] sm:text-[10px] scale-[0.25] sm:scale-[0.3] md:scale-[0.4]'
-                          }`}>
-                            {p.label}
-                          </div>
-                        </div>
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
+              {/* 🔥 FIX: ใช้ width 100% และ aspect-ratio เพื่อบังคับให้เป็นวงกลม */}
+              <div className="w-full max-w-[260px] sm:max-w-[320px] md:max-w-[400px] lg:max-w-[500px] mx-auto">
+                <div className="relative w-full pb-[100%]">
+                  <div className="absolute inset-0 rounded-full p-2 md:p-3 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center">
+                    
+                    <div 
+                      ref={wheelRef}
+                      className="w-full h-full rounded-full relative shadow-[inset_0_0_40px_rgba(0,0,0,0.8)] overflow-hidden"
+                      style={{ 
+                        background: `conic-gradient(${PRIZES.map((p, i) => `${p.color} ${i * (100 / PRIZES.length)}% ${(i + 1) * (100 / PRIZES.length)}%`).join(', ')})`
+                      }}
+                    >
+                      {PRIZES.map((p, i) => {
+                        const rot = i * (360 / PRIZES.length) + (360 / PRIZES.length / 2);
+                        const isJackpot = p.label === 'JP';
+                        const isSpecial = p.label === 'x4' || p.label === 'x3';
+                        return (
+                          <React.Fragment key={i}>
+                            <div 
+                              className="absolute top-0 left-1/2 -translate-x-1/2 h-1/2 flex items-start justify-center pt-0.5 sm:pt-1 md:pt-2 z-20 origin-bottom"
+                              style={{ transform: `rotate(${rot}deg)` }}
+                            >
+                              <div className={`font-black uppercase tracking-tighter origin-top ${
+                                isJackpot 
+                                  ? 'text-yellow-300 text-[8px] sm:text-[10px] md:text-xs lg:text-sm animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]' 
+                                  : isSpecial
+                                  ? 'text-white/80 text-[8px] sm:text-[10px] scale-[0.45] sm:scale-[0.5] md:scale-[0.6]'
+                                  : 'text-white/50 text-[8px] sm:text-[10px] scale-[0.25] sm:scale-[0.3] md:scale-[0.4]'
+                              }`}>
+                                {p.label}
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
 
-                <div className="absolute w-12 sm:w-14 md:w-20 lg:w-24 aspect-square bg-gradient-to-br from-gray-800 to-[#0A0F24] rounded-full border-2 sm:border-3 md:border-4 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.9)] flex items-center justify-center z-30">
-                  <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6 lg:w-8 lg:h-8 bg-yellow-400 rounded-full shadow-[0_0_15px_#FCD34D] animate-ping opacity-75"></div>
-                  <div className="absolute w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-4 md:h-4 lg:w-5 lg:h-5 bg-white rounded-full"></div>
-                </div>
+                    {/* 🔥 FIX: จุดกลางใช้ % แทน fixed size */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[20%] aspect-square bg-gradient-to-br from-gray-800 to-[#0A0F24] rounded-full border-2 sm:border-3 md:border-4 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.9)] flex items-center justify-center z-30">
+                      <div className="w-[40%] aspect-square bg-yellow-400 rounded-full shadow-[0_0_15px_#FCD34D] animate-ping opacity-75"></div>
+                      <div className="absolute w-[30%] aspect-square bg-white rounded-full"></div>
+                    </div>
 
+                  </div>
+                </div>
               </div>
             </div>
 
