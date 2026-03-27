@@ -26,7 +26,7 @@ export default function FishPrawnCrab() {
   const loseSnd = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
-    shakeSnd.current = new Audio('/sounds/dice.wav')
+    shakeSnd.current = new Audio('/sounds/Dice.wav')
     winSnd.current = new Audio('/sounds/Win.wav')
     loseSnd.current = new Audio('/sounds/Lose.wav')
   }, [])
