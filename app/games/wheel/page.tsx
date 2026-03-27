@@ -198,7 +198,7 @@ export default function LuckyWheel() {
         </div>
 
         {/* Main Content - Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 items-start max-w-5xl mx-auto">
           
           {/* Left: กติกา */}
           <div className="order-2 lg:order-1 bg-black/60 border border-yellow-500/30 rounded-3xl p-6 backdrop-blur-md">
@@ -258,14 +258,14 @@ export default function LuckyWheel() {
             </div>
           </div>
 
-          {/* Center: Wheel */}
+          {/* Right: Wheel */}
           <div className="order-1 lg:order-2 flex flex-col items-center space-y-6">
             <div className="relative flex items-center justify-center w-full">
               <div className="absolute left-[-10px] md:left-[-30px] lg:left-[-40px] z-30 text-4xl md:text-6xl lg:text-8xl text-yellow-400 drop-shadow-[0_0_25px_rgba(255,215,0,0.9)] animate-pulse">
                 ➽
               </div>
 
-              <div className="w-[280px] h-[280px] md:w-[400px] md:h-[400px] lg:w-[500px] lg:h-[500px] rounded-full p-2 md:p-3 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center relative">
+              <div className="w-[280px] md:w-[400px] lg:w-[500px] aspect-square rounded-full p-2 md:p-3 bg-gradient-to-br from-yellow-300 via-yellow-600 to-yellow-900 shadow-[0_0_60px_rgba(218,165,32,0.4)] flex items-center justify-center relative">
                 
                 <div 
                   ref={wheelRef}
@@ -299,7 +299,7 @@ export default function LuckyWheel() {
                   })}
                 </div>
 
-                <div className="absolute w-14 h-14 md:w-20 md:h-20 lg:w-24 lg:h-24 bg-gradient-to-br from-gray-800 to-[#0A0F24] rounded-full border-3 md:border-4 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.9)] flex items-center justify-center z-30">
+                <div className="absolute w-14 md:w-20 lg:w-24 aspect-square bg-gradient-to-br from-gray-800 to-[#0A0F24] rounded-full border-3 md:border-4 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.9)] flex items-center justify-center z-30">
                   <div className="w-4 h-4 md:w-6 md:h-6 lg:w-8 lg:h-8 bg-yellow-400 rounded-full shadow-[0_0_15px_#FCD34D] animate-ping opacity-75"></div>
                   <div className="absolute w-2 h-2 md:w-4 md:h-4 lg:w-5 lg:h-5 bg-white rounded-full"></div>
                 </div>
@@ -307,7 +307,7 @@ export default function LuckyWheel() {
               </div>
             </div>
 
-            {/* Bet Control ย้ายมาไว้ใต้วงล้อ */}
+            {/* Bet Control */}
             <div className="w-full max-w-md bg-black/80 border border-white/10 p-6 md:p-8 rounded-3xl shadow-2xl backdrop-blur-md">
               <div className="flex justify-between items-center mb-6 px-2">
                 <span className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">ยอดเดิมพัน</span>
@@ -334,32 +334,6 @@ export default function LuckyWheel() {
               >
                 {spinning ? 'กำลังหมุน...' : '🎰 หมุนเลย !'}
               </button>
-            </div>
-          </div>
-
-          {/* Right: Empty or Future Stats */}
-          <div className="order-3 hidden lg:block">
-            <div className="bg-black/60 border border-yellow-500/30 rounded-3xl p-6 backdrop-blur-md h-full">
-              <h2 className="font-['Fahkwang'] text-2xl md:text-3xl font-bold text-yellow-400 mb-6 text-center">🏆 สถิติ</h2>
-              
-              <div className="space-y-4 text-center">
-                <div className="bg-gradient-to-r from-yellow-600/10 to-transparent p-4 rounded-xl border border-yellow-500/20">
-                  <p className="text-gray-400 text-sm mb-1">ยอดเงินปัจจุบัน</p>
-                  <p className="text-3xl font-black text-yellow-400">
-                    ${profile?.balance.toLocaleString() || '0'}
-                  </p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-purple-600/10 to-transparent p-4 rounded-xl border border-purple-500/20">
-                  <p className="text-gray-400 text-sm mb-1">รอบการเล่น</p>
-                  <p className="text-2xl font-bold text-purple-400">-</p>
-                </div>
-                
-                <div className="bg-gradient-to-r from-green-600/10 to-transparent p-4 rounded-xl border border-green-500/20">
-                  <p className="text-gray-400 text-sm mb-1">ชนะล่าสุด</p>
-                  <p className="text-2xl font-bold text-green-400">-</p>
-                </div>
-              </div>
             </div>
           </div>
 
