@@ -8,9 +8,13 @@ export default function ManagementPage() {
   const [pendingLogs, setPendingLogs] = useState<any[]>([])
   const [allUsers, setAllUsers] = useState<any[]>([])
   const [adminLogs, setAdminLogs] = useState<any[]>([])
+  const [promoCodes, setPromoCodes] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'logs'>('pending')
+  const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'logs' | 'promo'>('pending')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // ฟอร์มสร้างโค้ด
+  const [newPromo, setNewPromo] = useState({ code: '', reward: 100, expiresAt: '', maxUses: 100, maxPerUser: 1 })
 
   useEffect(() => {
     if (!userLoading) {
@@ -25,11 +29,7 @@ export default function ManagementPage() {
   const fetchManagementData = async () => {
     setLoading(true)
     try {
-      const { data: fLogs } = await supabase
-        .from('finance_logs')
-        .select('id, amount, status, created_at, user_id, profiles!finance_logs_user_id_fkey(username, avatar_url, balance)')
-        .eq('status', 'รอดำเนินการ')
-        .order('created_at', { ascending: true })
+      const { data: fLogs } = await supabase.from('finance_logs').select('id, amount, status, created_at, user_id, profiles!finance_logs_user_id_fkey(username, avatar_url, balance)').eq('status', 'รอดำเนินการ').order('created_at', { ascending: true })
       setPendingLogs(fLogs || [])
 
       if (adminProfile?.role === 'admin') {
@@ -37,81 +37,76 @@ export default function ManagementPage() {
         setAllUsers(users || [])
       }
 
-      const { data: aLogs } = await supabase
-        .from('admin_logs')
-        .select('*, admin:admin_id(username), target:target_user_id(username)')
-        .order('created_at', { ascending: false })
-        .limit(100)
+      const { data: aLogs } = await supabase.from('admin_logs').select('*, admin:admin_id(username), target:target_user_id(username)').order('created_at', { ascending: false }).limit(100)
       setAdminLogs(aLogs || [])
+
+      const { data: pCodes } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false })
+      setPromoCodes(pCodes || [])
     } finally { setLoading(false) }
   }
 
   const saveAdminLog = async (targetId: string, action: string, details: string) => {
     if (!adminProfile) return
-    await supabase.from('admin_logs').insert([{ 
-      admin_id: adminProfile.id, 
-      target_user_id: targetId, 
-      action_type: action, 
-      details: details 
-    }])
+    await supabase.from('admin_logs').insert([{ admin_id: adminProfile.id, target_user_id: targetId, action_type: action, details: details }])
   }
 
-  // ✅ แก้ไขปัญหา 'possibly null' สำหรับ Vercel แบบ Final Fix
   const handleUpdateStatus = async (logId: number, newStatus: string, userId: string, amount: number, username: string) => {
     if (!confirm(`ยืนยันการดำเนินการสำหรับคุณ ${username}?`)) return
     try {
       if (newStatus === 'ยกเลิก') {
         const { data: u } = await supabase.from('profiles').select('balance').eq('id', userId).maybeSingle()
-        
-        // เช็คให้ชัวร์ว่า u มีตัวตนและมีค่า balance
         if (u && typeof u.balance === 'number') {
-          const newBalance = u.balance + amount;
-          await supabase.from('profiles').update({ balance: newBalance }).eq('id', userId)
+          await supabase.from('profiles').update({ balance: u.balance + amount }).eq('id', userId)
         }
       }
-      
       await supabase.from('finance_logs').update({ status: newStatus }).eq('id', logId)
       await saveAdminLog(userId, `${newStatus}รายการถอน`, `จำนวนเงิน $${amount.toLocaleString()}`)
       alert('ดำเนินการสำเร็จ !')
       fetchManagementData()
-    } catch (err) { 
-      console.error(err)
-      alert('เกิดข้อผิดพลาดในการอัปเดต') 
-    }
+    } catch (err) { alert('เกิดข้อผิดพลาดในการอัปเดต') }
   }
 
   const handleAdminUpdate = async (userId: string, username: string, field: string, value: any, previousValue?: any) => {
     if (!adminProfile) return
     if (!confirm(`ยืนยันการแก้ไขข้อมูลของคุณ ${username}?`)) return
-    
     try {
       await supabase.from('profiles').update({ [field]: value }).eq('id', userId)
-
       if (field === 'balance') {
         const pVal = typeof previousValue === 'number' ? previousValue : 0;
         const diff = value - pVal
         const isDeduction = diff < 0
-        const timestamp = new Date().toLocaleString('th-TH')
         const logType = isDeduction ? 'หักเงินโดยแอดมิน' : 'เติมเงินโดยแอดมิน'
         const actionText = isDeduction ? 'ถูกหักเงิน' : 'ได้รับเงินจากการเติมเงิน'
-        const logDesc = `${actionText} โดยแอดมิน: ${adminProfile.username} จำนวน: $${Math.abs(diff).toLocaleString()} เมื่อ: ${timestamp}`
-
-        await supabase.from('finance_logs').insert([{
-          user_id: userId,
-          type: logType,
-          amount: Math.abs(diff),
-          status: 'สำเร็จ',
-          description: logDesc
-        }])
-
-        await saveAdminLog(userId, isDeduction ? 'หักเงินสมาชิก' : 'เติมเงินสมาชิก', `ยอดเดิม $${pVal.toLocaleString()} -> ยอดใหม่ $${value.toLocaleString()} (${diff > 0 ? '+' : ''}${diff})`)
+        await supabase.from('finance_logs').insert([{ user_id: userId, type: logType, amount: Math.abs(diff), status: 'สำเร็จ', description: `${actionText} โดยแอดมิน: ${adminProfile.username}` }])
+        await saveAdminLog(userId, isDeduction ? 'หักเงินสมาชิก' : 'เติมเงินสมาชิก', `ยอดเดิม $${pVal.toLocaleString()} -> ยอดใหม่ $${value.toLocaleString()}`)
       } else {
         await saveAdminLog(userId, `แก้ไข ${field}`, `เป็น: ${value}`)
       }
-
-      alert('ดำเนินการสำเร็จ !')
-      fetchManagementData()
+      alert('ดำเนินการสำเร็จ !'); fetchManagementData()
     } catch (err) { alert('ไม่สามารถแก้ไขได้') }
+  }
+
+  // 🎁 ฟังก์ชันสร้างโค้ด
+  const handleCreatePromoCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newPromo.code || !newPromo.reward || !newPromo.expiresAt) return alert('กรุณากรอกข้อมูลให้ครบถ้วน')
+    
+    try {
+      const expiresUTC = new Date(newPromo.expiresAt).toISOString()
+      const { error } = await supabase.from('promo_codes').insert([{
+        code: newPromo.code.toUpperCase(),
+        reward_amount: newPromo.reward,
+        expires_at: expiresUTC,
+        max_uses: newPromo.maxUses,
+        max_uses_per_user: newPromo.maxPerUser,
+        created_by: adminProfile?.id
+      }])
+      
+      if (error) throw error
+      alert('สร้างโค้ดสำเร็จ!')
+      setNewPromo({ code: '', reward: 100, expiresAt: '', maxUses: 100, maxPerUser: 1 })
+      fetchManagementData()
+    } catch (err: any) { alert('สร้างโค้ดไม่สำเร็จ (ชื่อโค้ดอาจซ้ำ): ' + err.message) }
   }
 
   if (userLoading || !adminProfile) return <div className="min-h-screen bg-black text-white flex items-center justify-center font-black animate-pulse">STELLAR SYSTEM SECURED...</div>
@@ -124,14 +119,89 @@ export default function ManagementPage() {
             <h1 className="text-4xl font-bold uppercase tracking-tighter leading-none">Management</h1>
             <p className="text-gray-500 text-sm mt-4 italic">Operator: <span className="text-yellow-500 font-bold">{adminProfile.username}</span></p>
           </div>
-          <div className="flex bg-[#080808] p-1.5 rounded-2xl border border-gray-800 font-bold text-sm uppercase shadow-2xl">
-             <button onClick={()=>setActiveTab('pending')} className={`px-6 md:px-8 py-3 rounded-xl transition ${activeTab === 'pending' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>ถอนเงิน</button>
-             {adminProfile?.role === 'admin' && <button onClick={()=>setActiveTab('users')} className={`px-6 md:px-8 py-3 rounded-xl transition ${activeTab === 'users' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>สมาชิก</button>}
-             <button onClick={()=>setActiveTab('logs')} className={`px-6 md:px-8 py-3 rounded-xl transition ${activeTab === 'logs' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>ประวัติ</button>
+          <div className="flex flex-wrap bg-[#080808] p-1.5 rounded-2xl border border-gray-800 font-bold text-xs md:text-sm uppercase shadow-2xl gap-1">
+             <button onClick={()=>setActiveTab('pending')} className={`px-4 md:px-8 py-3 rounded-xl transition ${activeTab === 'pending' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>ถอนเงิน</button>
+             {adminProfile?.role === 'admin' && <button onClick={()=>setActiveTab('users')} className={`px-4 md:px-8 py-3 rounded-xl transition ${activeTab === 'users' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>สมาชิก</button>}
+             <button onClick={()=>setActiveTab('promo')} className={`px-4 md:px-8 py-3 rounded-xl transition ${activeTab === 'promo' ? 'bg-yellow-500 text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>🎁 แจกโค้ด</button>
+             <button onClick={()=>setActiveTab('logs')} className={`px-4 md:px-8 py-3 rounded-xl transition ${activeTab === 'logs' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}>ประวัติ</button>
           </div>
       </header>
 
       <section className="bg-[#080808] border border-gray-900 rounded-[2.5rem] overflow-hidden shadow-2xl flex-1 flex flex-col min-h-[500px]">
+          
+          {/* 🎁 TAB: PROMO CODES */}
+          {activeTab === 'promo' && (
+            <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
+              
+              {/* Form Create Code */}
+              <div className="w-full xl:w-1/3 bg-[#0a0a0a] border-r border-gray-900 p-8 flex flex-col">
+                <h3 className="text-yellow-500 font-black tracking-widest uppercase mb-6 flex items-center gap-2"><span>✚</span> สร้างโค้ดใหม่</h3>
+                <form onSubmit={handleCreatePromoCode} className="space-y-4">
+                  <div>
+                    <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">รหัสโค้ด (ภาษาอังกฤษ/ตัวเลข)</label>
+                    <input type="text" required value={newPromo.code} onChange={e=>setNewPromo({...newPromo, code: e.target.value.toUpperCase()})} placeholder="E.g. FREE100" className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm font-black text-white uppercase focus:border-yellow-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">จำนวนเงินที่ได้ ($)</label>
+                    <input type="number" required min="1" value={newPromo.reward} onChange={e=>setNewPromo({...newPromo, reward: parseFloat(e.target.value)})} className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-green-400 focus:border-yellow-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">วัน-เวลาหมดอายุ</label>
+                    <input type="datetime-local" required value={newPromo.expiresAt} onChange={e=>setNewPromo({...newPromo, expiresAt: e.target.value})} className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-yellow-500 outline-none" style={{ colorScheme: 'dark' }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">ใช้ได้ทั้งหมด (ครั้ง)</label>
+                      <input type="number" required min="1" value={newPromo.maxUses} onChange={e=>setNewPromo({...newPromo, maxUses: parseInt(e.target.value)})} className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-yellow-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">จำกัด/คน (ครั้ง)</label>
+                      <input type="number" required min="1" value={newPromo.maxPerUser} onChange={e=>setNewPromo({...newPromo, maxPerUser: parseInt(e.target.value)})} className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-yellow-500 outline-none" />
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full py-4 mt-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-xl text-xs uppercase tracking-widest transition shadow-lg active:scale-95">
+                    สร้างโค้ด
+                  </button>
+                </form>
+              </div>
+
+              {/* List of Codes */}
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead><tr className="text-[10px] text-gray-500 uppercase tracking-widest border-b border-gray-900 bg-[#0a0a0a] font-bold">
+                    <th className="p-6">โค้ดโปรโมชั่น</th><th className="p-6 text-center">ยอดเงิน</th><th className="p-6 text-center">สิทธิ์รวม</th><th className="p-6 text-right">หมดอายุ</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-900">
+                    {promoCodes.map(pc => {
+                      const isExpired = new Date(pc.expires_at) < new Date()
+                      const isFull = pc.current_uses >= pc.max_uses
+                      const statusColor = isExpired || isFull ? 'text-gray-600 opacity-50' : 'text-white'
+                      return (
+                        <tr key={pc.id} className={`hover:bg-white/[0.02] transition ${statusColor}`}>
+                          <td className="p-6">
+                            <div className="font-black text-lg tracking-widest text-yellow-500">{pc.code}</div>
+                            <div className="text-[10px] text-gray-500 mt-1">จำกัด {pc.max_uses_per_user} ครั้ง/คน</div>
+                          </td>
+                          <td className="p-6 text-center font-bold text-green-400 text-lg">+${pc.reward_amount.toLocaleString()}</td>
+                          <td className="p-6 text-center">
+                            <div className="font-bold">{pc.current_uses} / {pc.max_uses}</div>
+                            {isFull && <div className="text-[9px] text-red-500 font-bold uppercase mt-1">เต็มแล้ว</div>}
+                          </td>
+                          <td className="p-6 text-right">
+                            <div className="font-bold text-sm">{new Date(pc.expires_at).toLocaleString('th-TH')}</div>
+                            {isExpired && <div className="text-[9px] text-red-500 font-bold uppercase mt-1">หมดอายุแล้ว</div>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {promoCodes.length === 0 && <tr><td colSpan={4} className="text-center py-20 text-gray-700 font-black uppercase text-sm">ยังไม่มีโค้ดโปรโมชั่น</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: PENDING (ถอนเงิน) */}
           {activeTab === 'pending' && (
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-left">
@@ -158,24 +228,17 @@ export default function ManagementPage() {
             </div>
           )}
 
+          {/* TAB: USERS */}
           {activeTab === 'users' && adminProfile?.role === 'admin' && (
             <div className="flex flex-col flex-1">
               <div className="p-6 border-b border-gray-900 bg-[#0a0a0a]">
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อสมาชิก..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full max-w-md bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gray-500 transition placeholder-gray-600"
-                />
+                <input type="text" placeholder="ค้นหาชื่อสมาชิก..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full max-w-md bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gray-500 transition placeholder-gray-600" />
               </div>
               <div className="overflow-x-auto flex-1">
                 <table className="w-full text-left">
                   <thead><tr className="text-xs text-gray-500 uppercase tracking-tight border-b border-gray-900 bg-[#0a0a0a] font-bold"><th className="p-8">สมาชิก</th><th className="p-8 text-center">สิทธิ์</th><th className="p-8 text-right">ยอดเงิน ($)</th></tr></thead>
                   <tbody className="divide-y divide-gray-900">
-                    {allUsers
-                      .filter(u => u.username?.toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map(u => (
+                    {allUsers.filter(u => u.username?.toLowerCase().includes(searchQuery.toLowerCase())).map(u => (
                       <tr key={u.id} className="hover:bg-white/[0.02] transition">
                         <td className="p-8 flex items-center space-x-5">
                           <img src={u.avatar_url || 'https://iili.io/qQNVmS1.png'} className="w-11 h-11 rounded-full object-cover border border-gray-800" />
@@ -190,15 +253,7 @@ export default function ManagementPage() {
                         </td>
                         <td className="p-8 text-right font-bold text-xl">
                           $ {(u.balance || 0).toLocaleString()} 
-                          <button 
-                            onClick={() => {
-                              const a = prompt(`ยอดบวก/ลบ ให้ ${u.username}:`); 
-                              if(a && !isNaN(parseFloat(a))) {
-                                handleAdminUpdate(u.id, u.username, 'balance', (u.balance || 0) + parseFloat(a), (u.balance || 0))
-                              }
-                            }} 
-                            className="ml-4 w-10 h-10 rounded-xl border border-gray-800 inline-flex items-center justify-center hover:bg-white hover:text-black transition"
-                          >±</button>
+                          <button onClick={() => { const a = prompt(`ยอดบวก/ลบ ให้ ${u.username}:`); if(a && !isNaN(parseFloat(a))) handleAdminUpdate(u.id, u.username, 'balance', (u.balance || 0) + parseFloat(a), (u.balance || 0)) }} className="ml-4 w-10 h-10 rounded-xl border border-gray-800 inline-flex items-center justify-center hover:bg-white hover:text-black transition">±</button>
                         </td>
                       </tr>
                     ))}
@@ -208,6 +263,7 @@ export default function ManagementPage() {
             </div>
           )}
 
+          {/* TAB: LOGS */}
           {activeTab === 'logs' && (
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-left">
@@ -218,9 +274,7 @@ export default function ManagementPage() {
                       <td className="p-8 font-bold text-white text-lg">{l.admin?.username || 'System'}</td>
                       <td className="p-8 text-center">
                         <div className="flex items-center justify-center gap-4">
-                          <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-md font-bold uppercase text-[10px] text-yellow-500">
-                            {l.action_type}
-                          </span>
+                          <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-md font-bold uppercase text-[10px] text-yellow-500">{l.action_type}</span>
                           <span className="text-gray-500 text-xs italic">กับคุณ {l.target?.username || 'Unknown'} ({l.details})</span>
                         </div>
                       </td>
