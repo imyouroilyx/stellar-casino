@@ -8,12 +8,12 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-
+ 
 // ─── Game Logic ───────────────────────────────────────────────────────────────
 const SUITS  = ['♠','♥','♦','♣'] as const
 const VALUES = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'] as const
 type Card = { suit:string; value:string; score:number }
-
+ 
 function makeDeck(): Card[] {
   const deck: Card[] = []
   for (const suit of SUITS) for (const value of VALUES) {
@@ -27,15 +27,15 @@ function makeDeck(): Card[] {
 }
 const handScore = (cards: Card[]) => cards.reduce((s,c)=>s+c.score, 0)
 const isRed = (suit:string) => suit==='♥'||suit==='♦'
-
+ 
 // ─── Types ────────────────────────────────────────────────────────────────────
 const MAX_PLAYERS = 4
 const MIN_BET     = 10
-
+ 
 type PlayerAction = 'IDLE' | 'WAITING' | 'MY_TURN' | 'DONE'
 type RoomPhase    = 'LOBBY' | 'PLAYING' | 'RESULT'
 type EndReason    = 'KAENG' | 'KNOCK' | null
-
+ 
 interface Player {
   id:         string
   username:   string
@@ -48,7 +48,7 @@ interface Player {
   netChange:  number
   isOnline:   boolean
 }
-
+ 
 interface Room {
   id:          string
   code:        string
@@ -63,20 +63,20 @@ interface Room {
   winnerIdx:   number
   gameLog:     string[]
 }
-
+ 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const genCode = () => Math.random().toString(36).substring(2,8).toUpperCase()
 const isRed2  = isRed
-
+ 
 // เรียงไพ่จากแต้มน้อยไปมาก
 const sortHand = (hand: Card[]): Card[] => [...hand].sort((a, b) => a.score - b.score)
-
+ 
 // ตรวจตบ: มีไพ่ค่าเดียวกัน ≥ 2 ใบที่ตรงกับ topDiscard
 const hasSlapCards = (hand: Card[], top: Card | undefined): boolean => {
   if (!top) return false
   return hand.filter(c => c.value === top.value).length >= 2
 }
-
+ 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function Avatar({ url, name, size=32, online }:{ url:string|null; name:string; size?:number; online?:boolean }) {
   return (
@@ -94,7 +94,7 @@ function Avatar({ url, name, size=32, online }:{ url:string|null; name:string; s
     </div>
   )
 }
-
+ 
 function CardSm({ card, hidden, highlight, onClick }:{
   card?:Card; hidden?:boolean; highlight?:boolean; onClick?:()=>void
 }) {
@@ -110,7 +110,7 @@ function CardSm({ card, hidden, highlight, onClick }:{
     </div>
   )
 }
-
+ 
 function PhaseBadge({ phase }:{ phase:RoomPhase }) {
   const cfg:Record<RoomPhase,{label:string;cls:string}> = {
     LOBBY:   {label:'● รอผู้เล่น',  cls:'bg-green-500/15  text-green-400  border-green-500/20'},
@@ -120,21 +120,21 @@ function PhaseBadge({ phase }:{ phase:RoomPhase }) {
   const {label,cls}=cfg[phase]
   return <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${cls}`}>{label}</span>
 }
-
+ 
 // ══════════════════════════════════════════════════════════════════════════════
 // Main
 // ══════════════════════════════════════════════════════════════════════════════
 export default function KaengMultiplayer() {
   const router = useRouter()
   const { profile, syncUser } = useUser()
-
+ 
   const [screen,       setScreen]       = useState<'LIST'|'ROOM'>('LIST')
   const [lobbyList,    setLobbyList]    = useState<{id:string;code:string;count:number;hostName:string}[]>([])
   const [joinCode,     setJoinCode]     = useState('')
   const [room,         setRoom]         = useState<Room|null>(null)
   const roomRef                         = useRef<Room|null>(null)
   const channelRef                      = useRef<RealtimeChannel|null>(null)
-
+ 
   const [betInput,      setBetInput]      = useState(MIN_BET)
   const [selectedCard,  setSelectedCard]  = useState<number|null>(null)
   const [toast,         setToast]         = useState('')
@@ -144,7 +144,7 @@ export default function KaengMultiplayer() {
   const [resultVisible, setResultVisible] = useState(false)
   const [slapNotice,   setSlapNotice]   = useState('')   // 'ตบ!' | 'โง่!' | ''
   const chatBottomRef = useRef<HTMLDivElement>(null)
-
+ 
   const sfx = useRef<Record<string,HTMLAudioElement>>({})
   useEffect(() => {
     sfx.current.flip    = new Audio('/sounds/Card-flip.wav')
@@ -157,10 +157,10 @@ export default function KaengMultiplayer() {
   }, [])
   const play   = (k:string) => { const a=sfx.current[k]; if(a){a.currentTime=0;a.play().catch(()=>{})} }
   const toast_ = (msg:string) => { setToast(msg); setTimeout(()=>setToast(''),3000) }
-
+ 
   useEffect(()=>{ roomRef.current=room },[room])
   useEffect(()=>{ chatBottomRef.current?.scrollIntoView({behavior:'smooth'}) },[chatLog])
-
+ 
   useEffect(()=>{
     if (room?.phase==='RESULT') {
       setResultVisible(false)
@@ -168,7 +168,7 @@ export default function KaengMultiplayer() {
       return ()=>clearTimeout(t)
     } else { setResultVisible(false) }
   },[room?.phase])
-
+ 
   // ── Fetch lobby ─────────────────────────────────────────────────────────
   const fetchLobby = async () => {
     const { data } = await supabase
@@ -178,7 +178,7 @@ export default function KaengMultiplayer() {
       id:r.id, code:r.code, count:r.players?.length??0, hostName:r.profiles?.username??'—',
     })))
   }
-
+ 
   // ── Parse DB row → Room ─────────────────────────────────────────────────
   const parseRoom = (d:any): Room => ({
     id:d.id, code:d.code, hostId:d.host_id, phase:d.phase,
@@ -187,7 +187,7 @@ export default function KaengMultiplayer() {
     endReason:d.end_reason??null, winnerIdx:d.winner_idx??-1,
     gameLog:d.game_log??[],
   })
-
+ 
   // ── Subscribe ────────────────────────────────────────────────────────────
   const subscribe = useCallback((roomId:string) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current)
@@ -218,16 +218,16 @@ export default function KaengMultiplayer() {
       .subscribe(async s=>{ if(s==='SUBSCRIBED') await ch.track({userId:profile?.id}) })
     channelRef.current=ch
   },[profile])
-
+ 
   const dbUpdate = async (patch:Record<string,unknown>) => {
     if (!roomRef.current) return
     await supabase.from('kaeng_rooms').update(patch).eq('id',roomRef.current.id)
   }
-
+ 
   const addLog = async (msg:string, currentLog:string[]) => {
     return [...currentLog.slice(-29), msg]
   }
-
+ 
   // ── Create ───────────────────────────────────────────────────────────────
   const createRoom = async () => {
     if (!profile) return toast_('กรุณาล็อกอินก่อน')
@@ -243,7 +243,7 @@ export default function KaengMultiplayer() {
     if(error||!data) return toast_('สร้างห้องไม่สำเร็จ')
     setRoom(parseRoom(data)); subscribe(data.id); setScreen('ROOM')
   }
-
+ 
   // ── Join ─────────────────────────────────────────────────────────────────
   const joinRoom = async (id?:string, code?:string) => {
     if (!profile) return toast_('กรุณาล็อกอินก่อน')
@@ -263,7 +263,7 @@ export default function KaengMultiplayer() {
     await supabase.from('kaeng_rooms').update({players:updated}).eq('id',data.id)
     setRoom(parseRoom({...data,players:updated})); subscribe(data.id); setScreen('ROOM')
   }
-
+ 
   // ── Leave ────────────────────────────────────────────────────────────────
   const leaveRoom = async () => {
     if (!room||!profile) return
@@ -276,14 +276,14 @@ export default function KaengMultiplayer() {
     channelRef.current&&supabase.removeChannel(channelRef.current)
     setRoom(null); setChatLog([]); setScreen('LIST'); fetchLobby()
   }
-
+ 
   // ── Kick ─────────────────────────────────────────────────────────────────
   const kickPlayer = async (targetId:string) => {
     if (!room||room.hostId!==profile?.id) return
     setKickTarget(null)
     await dbUpdate({players:room.players.filter(p=>p.id!==targetId)})
   }
-
+ 
   // ── Start game (Host) ────────────────────────────────────────────────────
   const startGame = async () => {
     if (!room||room.hostId!==profile?.id) return
@@ -312,7 +312,7 @@ export default function KaengMultiplayer() {
     })
     syncUser()
   }
-
+ 
   // ── Action helpers ────────────────────────────────────────────────────────
   const myIdx = room?.players.findIndex(p=>p.id===profile?.id) ?? -1
   const isMyTurn = room?.phase==='PLAYING' && room?.currentTurn === myIdx
@@ -320,7 +320,7 @@ export default function KaengMultiplayer() {
   const topDiscard = room?.discardPile[room.discardPile.length-1]
   const canFlow = isMyTurn && !!topDiscard && (me?.hand??[]).some(c=>c.value===topDiscard.value)
   const mustDiscard = isMyTurn && (me?.hand?.length??0) === 6  // จั่วแล้วต้องทิ้ง
-
+ 
   // ── Draw card ────────────────────────────────────────────────────────────
   const actionDraw = async () => {
     if (!room||!profile||!isMyTurn||mustDiscard) return
@@ -344,7 +344,7 @@ export default function KaengMultiplayer() {
     await dbUpdate({players:newPlayers, deck:newDeck, game_log:newLog})
     setSelectedCard(null)
   }
-
+ 
   // ── Flow ─────────────────────────────────────────────────────────────────
   const actionFlow = async () => {
     if (!room||!profile||!isMyTurn||!canFlow||mustDiscard) return
@@ -355,10 +355,10 @@ export default function KaengMultiplayer() {
     const isSlapping = slapCards.length >= 2
     const flowIdx = myHand.findIndex(c=>c.value===top.value)
     if (flowIdx===-1) return
-
+ 
     play(isSlapping ? 'slap' : 'win')
     if (isSlapping) { setSlapNotice('ตบ!'); setTimeout(()=>setSlapNotice(''), 1500) }
-
+ 
     const rawNewHand = isSlapping
       ? myHand.filter(c => c.value !== top.value)   // ทิ้งทุกใบที่ตรง
       : myHand.filter((_,i) => i !== flowIdx)
@@ -368,21 +368,21 @@ export default function KaengMultiplayer() {
       : [...room.discardPile, myHand[flowIdx]]
     const label = isSlapping ? `ตบ! ${slapCards.length} ใบ` : 'ไหล'
     const newLog = await addLog(`${me?.username} ${label} ${top.value}${top.suit}`, room.gameLog)
-
+ 
     if (newHand.length===0) {
       // น็อค!
       const newPlayers = room.players.map((p,i)=>i===myIdx?{...p,hand:newHand,score:0}:p)
       await dbUpdate({players:newPlayers, discard_pile:newDp, game_log:[...newLog,'🎉 น็อค! '+me?.username+' ไพ่หมดมือ!']})
       return await endGame('KNOCK', myIdx, newPlayers)
     }
-
+ 
     const newPlayers = room.players.map((p,i)=>i===myIdx?{...p,hand:newHand,score:handScore(newHand)}:p)
     const next = (myIdx+1)%room.players.length
     const nextPlayers = newPlayers.map((p,i)=>({...p, action:(i===next?'MY_TURN':'WAITING') as PlayerAction}))
     await dbUpdate({players:nextPlayers, discard_pile:newDp, current_turn:next, game_log:newLog})
     setSelectedCard(null)
   }
-
+ 
   // ── Discard selected card ─────────────────────────────────────────────────
   const actionDiscard = async () => {
     if (!room||!profile||!isMyTurn||!mustDiscard||selectedCard===null) return
@@ -402,7 +402,7 @@ export default function KaengMultiplayer() {
     await dbUpdate({players:newPlayers, discard_pile:newDp, current_turn:next, game_log:newLog})
     setSelectedCard(null)
   }
-
+ 
   // ── Declare Kaeng ─────────────────────────────────────────────────────────
   const actionDeclareKaeng = async () => {
     if (!room||!profile||!isMyTurn||mustDiscard) return
@@ -410,12 +410,12 @@ export default function KaengMultiplayer() {
     await dbUpdate({game_log:newLog})
     await endGame('KAENG', myIdx)
   }
-
+ 
   // ── End game ──────────────────────────────────────────────────────────────
   const endGame = async (reason:EndReason, forcedWinner?:number, overridePlayers?:Player[]) => {
     if (!room) return
     const ps = overridePlayers ?? room.players
-
+ 
     let winIdx = forcedWinner ?? -1
     if (reason==='KAENG' && winIdx===-1) {
       // หาคนแต้มน้อยสุด
@@ -423,7 +423,7 @@ export default function KaengMultiplayer() {
       ps.forEach((p,i)=>{ if(p.score<minScore){minScore=p.score;winIdx=i} })
     }
     if (reason==='KNOCK' && winIdx===-1 && forcedWinner!==undefined) winIdx=forcedWinner
-
+ 
     // ── คำนวณเงิน ─────────────────────────────────────────────────────────────
     // แคง:  ผู้ชนะได้ bet จากทุกคนในวง (× จำนวนคนแพ้)
     // น็อค: ผู้ชนะได้ bet×2 จากทุกคน, คนแพ้เสีย bet×2
@@ -431,17 +431,17 @@ export default function KaengMultiplayer() {
     const losers = ps.filter((_,i) => i !== winIdx)
     const payPerLoser = reason === 'KNOCK' ? winner.bet * 2 : winner.bet
     const winnerNet   = payPerLoser * losers.length
-
+ 
     const settled = ps.map((p, i) => {
       if (i === winIdx) return { ...p, action: 'DONE' as PlayerAction, netChange: winnerNet }
       return { ...p, action: 'DONE' as PlayerAction, netChange: -payPerLoser }
     })
-
+ 
     await dbUpdate({
       phase: 'RESULT', players: settled, winner_idx: winIdx, end_reason: reason,
       game_log: [...(room.gameLog), `🏆 ${winner.username} ชนะ! (${reason==='KNOCK'?'น็อค':'แคง'}) · ${winner.score} แต้ม`],
     })
-
+ 
     // อัปเดต balance
     // bet ถูกหักไปแล้วตอน startGame ดังนั้น:
     //   ผู้ชนะ: คืน bet + รับเงิน winnerNet → +bet +winnerNet
@@ -459,7 +459,7 @@ export default function KaengMultiplayer() {
     }
     syncUser()
   }
-
+ 
   // ── Next round ────────────────────────────────────────────────────────────
   const nextRound = async () => {
     if (!room||room.hostId!==profile?.id) return
@@ -469,7 +469,7 @@ export default function KaengMultiplayer() {
       end_reason:null, winner_idx:-1, game_log:[],
     })
   }
-
+ 
   // ── Chat ─────────────────────────────────────────────────────────────────
   const sendChat = async () => {
     if (!chatInput.trim()||!room||!profile) return
@@ -477,13 +477,13 @@ export default function KaengMultiplayer() {
     setChatLog(prev=>[...prev.slice(-99),payload]); setChatInput('')
     await channelRef.current?.send({type:'broadcast',event:'chat',payload})
   }
-
+ 
   // ─── Derived ──────────────────────────────────────────────────────────────
   const isHost = room?.hostId===profile?.id
   // ตรวจตบ: ใช้ใน UI button label
   const myHandForSlap = me?.hand ?? []
   const isSlapPossible = hasSlapCards(myHandForSlap, topDiscard)
-
+ 
   // ══════════════════════════════════════════════════════════════════════════
   // LIST SCREEN
   // ══════════════════════════════════════════════════════════════════════════
@@ -500,7 +500,7 @@ export default function KaengMultiplayer() {
             <p className="text-xs text-gray-600 font-bold uppercase tracking-widest">Multiplayer · 2–4 คน · จั่ว ไหล แคง น็อค</p>
           </div>
         </div>
-
+ 
         <div className="bg-black/60 border border-white/8 rounded-2xl p-5 flex flex-col gap-4">
           <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest">สร้างห้องใหม่</h2>
           <div className="flex items-center justify-between px-4 py-2.5 bg-white/5 rounded-xl border border-white/8">
@@ -519,7 +519,7 @@ export default function KaengMultiplayer() {
             🏠 สร้างห้อง
           </button>
         </div>
-
+ 
         <div className="bg-black/60 border border-white/8 rounded-2xl p-5 flex flex-col gap-3">
           <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest">เข้าด้วยรหัส</h2>
           <div className="flex gap-2">
@@ -531,7 +531,7 @@ export default function KaengMultiplayer() {
               className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-xl transition text-sm">เข้าร่วม</button>
           </div>
         </div>
-
+ 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-black text-gray-500 uppercase tracking-widest">ห้องที่เปิดอยู่</h2>
@@ -559,12 +559,12 @@ export default function KaengMultiplayer() {
       </div>
     </div>
   )
-
+ 
   // ══════════════════════════════════════════════════════════════════════════
   // ROOM SCREEN
   // ══════════════════════════════════════════════════════════════════════════
   if (!room) return null
-
+ 
   return (
     <div className="min-h-screen bg-[#080b12] text-white flex flex-col"
       style={{backgroundImage:"url('https://iili.io/qZ3dyUg.png')",backgroundSize:'cover',backgroundAttachment:'fixed'}}>
@@ -577,9 +577,9 @@ export default function KaengMultiplayer() {
         .slide-up{animation:slideUp .4s ease forwards}
         .scr::-webkit-scrollbar{width:3px}.scr::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:9px}
       `}</style>
-
+ 
       {toast&&<div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#111827] border border-white/10 text-sm font-bold px-5 py-2.5 rounded-2xl shadow-xl">{toast}</div>}
-
+ 
       {kickTarget&&(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 flex flex-col items-center gap-4 w-72 shadow-2xl">
@@ -592,7 +592,7 @@ export default function KaengMultiplayer() {
           </div>
         </div>
       )}
-
+ 
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-black/50 backdrop-blur-sm shrink-0">
         <button onClick={leaveRoom} className="text-xs font-bold text-gray-500 hover:text-white px-3 py-1.5 bg-white/5 rounded-lg transition">← ออก</button>
@@ -606,12 +606,12 @@ export default function KaengMultiplayer() {
         </div>
         <div className="text-xs text-gray-600 font-bold">{room.players.length}/{MAX_PLAYERS}</div>
       </div>
-
+ 
       <div className="flex flex-1 overflow-hidden">
-
+ 
         {/* ═══ BOARD ══════════════════════════════════════════════════════ */}
         <div className="flex-1 flex flex-col overflow-y-auto scr p-4 gap-4">
-
+ 
           {/* Opponents */}
           {room.phase==='PLAYING' && (
             <div className="grid grid-cols-3 gap-3">
@@ -635,7 +635,7 @@ export default function KaengMultiplayer() {
               })}
             </div>
           )}
-
+ 
           {/* Deck + Discard */}
           {room.phase==='PLAYING' && (
             <div className="flex items-center justify-center gap-8">
@@ -657,7 +657,7 @@ export default function KaengMultiplayer() {
                 <span className="text-[10px] text-gray-600 font-bold">กองทิ้ง</span>
               </div>
             </div>
-
+ 
               {/* Slap / โง่ notice */}
               {slapNotice && (
                 <div className={`text-4xl font-black animate-bounce text-center
@@ -666,7 +666,7 @@ export default function KaengMultiplayer() {
                 </div>
               )}
           )}
-
+ 
           {/* My hand */}
           {room.phase==='PLAYING' && me && (
             <div className={`rounded-2xl border p-4 transition-all ${isMyTurn?'border-yellow-500/40 bg-yellow-900/10 glow-me':'border-white/8 bg-black/40'}`}>
@@ -685,7 +685,7 @@ export default function KaengMultiplayer() {
               </div>
             </div>
           )}
-
+ 
           {/* RESULT */}
           {room.phase==='RESULT' && resultVisible && (
             <div className="bg-black/70 border border-white/8 rounded-2xl p-5 flex flex-col gap-4 slide-up">
@@ -729,10 +729,10 @@ export default function KaengMultiplayer() {
               <p className="text-gray-500 font-bold animate-pulse">นับแต้ม...</p>
             </div>
           )}
-
+ 
           {/* ── Control panel ── */}
           <div className="bg-black/70 border border-white/8 rounded-2xl p-4">
-
+ 
             {/* LOBBY */}
             {room.phase==='LOBBY' && (
               <div className="flex flex-col items-center gap-3">
@@ -757,21 +757,21 @@ export default function KaengMultiplayer() {
                 }
               </div>
             )}
-
+ 
             {/* PLAYING */}
             {room.phase==='PLAYING' && !isMyTurn && (
               <p className="text-center text-gray-600 font-black animate-pulse text-sm py-2">
                 รอ {room.players[room.currentTurn]?.username}...
               </p>
             )}
-
+ 
             {room.phase==='PLAYING' && isMyTurn && mustDiscard && (
               <button onClick={actionDiscard} disabled={selectedCard===null}
                 className="w-full py-3.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-lg transition active:scale-95 disabled:opacity-30">
                 🗑️ ทิ้งไพ่ที่เลือก
               </button>
             )}
-
+ 
             {room.phase==='PLAYING' && isMyTurn && !mustDiscard && (
               <div className="grid grid-cols-3 gap-3">
                 <button onClick={actionDraw}
@@ -790,10 +790,10 @@ export default function KaengMultiplayer() {
             )}
           </div>
         </div>
-
+ 
         {/* ═══ SIDEBAR ════════════════════════════════════════════════════ */}
         <div className="hidden md:flex w-56 border-l border-white/5 flex-col bg-black/30 shrink-0">
-
+ 
           {/* Players */}
           <div className="p-4 border-b border-white/5">
             <p className="text-xs font-black text-gray-600 uppercase tracking-widest mb-3">ผู้เล่น</p>
@@ -816,7 +816,7 @@ export default function KaengMultiplayer() {
               ))}
             </div>
           </div>
-
+ 
           {/* Game log */}
           {room.phase==='PLAYING' && (
             <div className="p-4 border-b border-white/5 flex-1 flex flex-col min-h-0">
@@ -828,7 +828,7 @@ export default function KaengMultiplayer() {
               </div>
             </div>
           )}
-
+ 
           {/* Chat */}
           <div className="flex-1 flex flex-col p-4 min-h-0">
             <p className="text-xs font-black text-gray-600 uppercase tracking-widest mb-2">💬 แชท</p>
@@ -852,7 +852,7 @@ export default function KaengMultiplayer() {
               <button onClick={sendChat} className="px-2.5 py-2 bg-purple-700 hover:bg-purple-600 rounded-lg text-xs font-black transition">↵</button>
             </div>
           </div>
-
+ 
           {/* Rules */}
           <div className="p-4 border-t border-white/5">
             <p className="text-xs font-black text-yellow-600 uppercase tracking-widest mb-2">กติกา</p>
