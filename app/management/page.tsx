@@ -10,6 +10,7 @@ export default function ManagementPage() {
   const [adminLogs, setAdminLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'pending' | 'users' | 'logs'>('pending')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (!userLoading) {
@@ -158,39 +159,52 @@ export default function ManagementPage() {
           )}
 
           {activeTab === 'users' && adminProfile?.role === 'admin' && (
-            <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left">
-                <thead><tr className="text-xs text-gray-500 uppercase tracking-tight border-b border-gray-900 bg-[#0a0a0a] font-bold"><th className="p-8">สมาชิก</th><th className="p-8 text-center">สิทธิ์</th><th className="p-8 text-right">ยอดเงิน ($)</th></tr></thead>
-                <tbody className="divide-y divide-gray-900">
-                  {allUsers.map(u => (
-                    <tr key={u.id} className="hover:bg-white/[0.02] transition">
-                      <td className="p-8 flex items-center space-x-5">
-                        <img src={u.avatar_url || 'https://iili.io/qQNVmS1.png'} className="w-11 h-11 rounded-full object-cover border border-gray-800" />
-                        <div className="font-bold text-lg">{u.username}</div>
-                      </td>
-                      <td className="p-8 text-center">
-                        <select value={u.role} onChange={(e)=>handleAdminUpdate(u.id, u.username, 'role', e.target.value)} className="bg-black border border-gray-800 rounded-xl px-4 py-2 text-xs font-bold text-yellow-500 uppercase outline-none">
-                          <option value="user">User</option>
-                          <option value="staff">Staff</option>
-                          <option value="admin">Admin</option>
-                        </select>
-                      </td>
-                      <td className="p-8 text-right font-bold text-xl">
-                        $ {(u.balance || 0).toLocaleString()} 
-                        <button 
-                          onClick={() => {
-                            const a = prompt(`ยอดบวก/ลบ ให้ ${u.username}:`); 
-                            if(a && !isNaN(parseFloat(a))) {
-                              handleAdminUpdate(u.id, u.username, 'balance', (u.balance || 0) + parseFloat(a), (u.balance || 0))
-                            }
-                          }} 
-                          className="ml-4 w-10 h-10 rounded-xl border border-gray-800 inline-flex items-center justify-center hover:bg-white hover:text-black transition"
-                        >±</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex flex-col flex-1">
+              <div className="p-6 border-b border-gray-900 bg-[#0a0a0a]">
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อสมาชิก..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full max-w-md bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-gray-500 transition placeholder-gray-600"
+                />
+              </div>
+              <div className="overflow-x-auto flex-1">
+                <table className="w-full text-left">
+                  <thead><tr className="text-xs text-gray-500 uppercase tracking-tight border-b border-gray-900 bg-[#0a0a0a] font-bold"><th className="p-8">สมาชิก</th><th className="p-8 text-center">สิทธิ์</th><th className="p-8 text-right">ยอดเงิน ($)</th></tr></thead>
+                  <tbody className="divide-y divide-gray-900">
+                    {allUsers
+                      .filter(u => u.username?.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map(u => (
+                      <tr key={u.id} className="hover:bg-white/[0.02] transition">
+                        <td className="p-8 flex items-center space-x-5">
+                          <img src={u.avatar_url || 'https://iili.io/qQNVmS1.png'} className="w-11 h-11 rounded-full object-cover border border-gray-800" />
+                          <div className="font-bold text-lg">{u.username}</div>
+                        </td>
+                        <td className="p-8 text-center">
+                          <select value={u.role} onChange={(e)=>handleAdminUpdate(u.id, u.username, 'role', e.target.value)} className="bg-black border border-gray-800 rounded-xl px-4 py-2 text-xs font-bold text-yellow-500 uppercase outline-none">
+                            <option value="user">User</option>
+                            <option value="staff">Staff</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </td>
+                        <td className="p-8 text-right font-bold text-xl">
+                          $ {(u.balance || 0).toLocaleString()} 
+                          <button 
+                            onClick={() => {
+                              const a = prompt(`ยอดบวก/ลบ ให้ ${u.username}:`); 
+                              if(a && !isNaN(parseFloat(a))) {
+                                handleAdminUpdate(u.id, u.username, 'balance', (u.balance || 0) + parseFloat(a), (u.balance || 0))
+                              }
+                            }} 
+                            className="ml-4 w-10 h-10 rounded-xl border border-gray-800 inline-flex items-center justify-center hover:bg-white hover:text-black transition"
+                          >±</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
