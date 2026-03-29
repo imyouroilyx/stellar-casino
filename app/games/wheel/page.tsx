@@ -326,12 +326,12 @@ export default function LuckyWheel() {
                     <input 
                       type="number" 
                       value={bet} 
-                      onChange={(e) => setBet(parseInt(e.target.value) || 0)}
+                      onChange={(e) => setBet(Math.min(parseInt(e.target.value) || 0, 1000))}
                       disabled={spinning}
                       className="bg-transparent text-xl sm:text-2xl md:text-3xl font-bold text-center w-16 sm:w-20 md:w-24 focus:outline-none text-yellow-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
-                  <button onClick={() => setBet(bet + 10)} disabled={spinning} className="text-xl sm:text-2xl md:text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">＋</button>
+                  <button onClick={() => setBet(Math.min(bet + 10, 1000))} disabled={spinning} className="text-xl sm:text-2xl md:text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">＋</button>
                 </div>
               </div>
 
