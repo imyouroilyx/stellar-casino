@@ -57,7 +57,7 @@ function aiChooseDiscard(hand: Card[]): number {
 
 const aiShouldDeclare = (hand: Card[]) => {
   const score = handScore(hand)
-  if (score <= 5) return true               
+  if (score <= 5) return true                
   if (score <= 10) return Math.random() < 0.7 
   if (score <= 15) return Math.random() < 0.2 
   return false
@@ -453,7 +453,7 @@ export default function KaengSingle() {
                 </div>
                 <div className="flex gap-2">
                   {[10,50,100,500].map(v => (
-                    <button key={v} onClick={() => setBet(b => b+v)}
+                    <button key={v} onClick={() => setBet(b => Math.min(b+v, 1000))}
                       className="flex-1 py-2.5 bg-white/5 rounded-xl font-black text-sm hover:bg-yellow-500 hover:text-black transition">+{v}</button>
                   ))}
                   <button onClick={() => setBet(10)} className="px-3 py-2.5 bg-red-900/30 text-red-400 rounded-xl font-black text-sm">↺</button>
