@@ -58,7 +58,7 @@ export default function SlotGame() {
     if (isNaN(value)) {
       setBet(0);
     } else {
-      setBet(value);
+      setBet(Math.min(value, 1000));
     }
   }
 
@@ -267,7 +267,7 @@ export default function SlotGame() {
                   </div>
                   <button 
                     disabled={spinning}
-                    onClick={() => setBet(bet + 10)} 
+                    onClick={() => setBet(Math.min(bet + 10, 1000))} 
                     className="text-xl md:text-2xl opacity-40 hover:opacity-100 transition disabled:opacity-10"
                   >
                     ＋
