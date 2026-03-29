@@ -35,7 +35,7 @@ export default function StellarHilo() {
     }
   }
 
-  // ✅ แก้ไขบั๊กตรงนี้: บังคับให้ล้างการเดิมพันข้ามกลุ่มด้วย
+  // ✅ แก้ไขบั๊กตรงนี้: บังคับให้ล้างการเดิมพันข้ามกลุ่มด้วย และจำกัดเพดานไม่เกิน 1000
   const placeBet = (type: string) => {
     if (isRolling) return
     setBets(prev => {
@@ -55,7 +55,10 @@ export default function StellarHilo() {
         // ล้างกลุ่ม Main ทิ้งทั้งหมด
         groupMain.forEach(key => delete newBets[key]);
       }
-      newBets[type] = (newBets[type] || 0) + currentChip;
+      
+      // บังคับเพดานเงินเดิมพันรวมในช่องนั้นๆ ไม่เกิน 1000
+      newBets[type] = Math.min((newBets[type] || 0) + currentChip, 1000);
+      
       return newBets;
     });
   }
