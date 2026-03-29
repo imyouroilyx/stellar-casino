@@ -266,7 +266,7 @@ function PokDengSingle({ onBack }: { onBack: () => void }) {
                 </div>
                 <div className="flex gap-2">
                   {[10, 100, 500, 1000].map(v => (
-                    <button key={v} onClick={() => setBet(bet + v)} className="flex-1 py-3 md:py-4 bg-white/5 rounded-2xl font-black text-base md:text-lg hover:bg-yellow-500 hover:text-black transition-all">+{v}</button>
+                    <button key={v} onClick={() => setBet(Math.min(bet + v, 1000))} className="flex-1 py-3 md:py-4 bg-white/5 rounded-2xl font-black text-base md:text-lg hover:bg-yellow-500 hover:text-black transition-all">+{v}</button>
                   ))}
                   <button onClick={() => setBet(10)} className="flex-1 py-3 md:py-4 bg-red-900/30 text-red-400 rounded-2xl font-black">RESET</button>
                 </div>
