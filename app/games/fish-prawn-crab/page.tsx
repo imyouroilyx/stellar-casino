@@ -40,7 +40,7 @@ export default function HooHeyHow() {
 
   const placeBet = (label: string) => {
     if (isRolling) return
-    setBets({ [label]: (bets[label] || 0) + currentChip })
+    setBets({ [label]: Math.min((bets[label] || 0) + currentChip, 1000) })
   }
 
   const rollDice = async () => {
@@ -186,7 +186,7 @@ export default function HooHeyHow() {
 
           <button onClick={rollDice} disabled={isRolling}
             className={`w-full py-4 md:py-6 font-black rounded-full text-xl md:text-2xl tracking-[0.1em] uppercase shadow-2xl transition-all duration-300 active:scale-95 ${isRolling ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600 text-black hover:from-yellow-300 hover:to-yellow-500 shadow-[0_0_30px_rgba(250,204,21,0.4)]'}`}>
-            {isRolling ? 'กำลังเขย่า...' : 'เริ่มเลย !'}
+            {isRolling ? 'กำลังเขย่า...' : 'เริ่มเลอ'}
           </button>
         </div>
       </div>
