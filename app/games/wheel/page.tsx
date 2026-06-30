@@ -7,10 +7,13 @@ import { useUser } from '@/lib/UserContext'
 // ✅ สร้างวงล้อ 100 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
 // ปรับโอกาสได้เงิน: ช่องได้เงินรวม 25 ช่อง / ไม่ได้เงิน 75 ช่อง
 // จำกัดการเล่น: 3 ครั้งต่อวัน โดยนับจาก game_logs ของเกม Stellar Wheel
+// รีเซ็ตโควต้าทุกวันเวลา 00:00 น. ตามเวลาไทย (UTC+7)
 type Prize = { label: string; multiplier: number; color: string }
 
 const TOTAL_SLOTS = 100
 const DAILY_SPIN_LIMIT = 3
+const THAI_TIME_OFFSET_MS = 7 * 60 * 60 * 1000
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_PRIZE: Prize = { label: 'x0', multiplier: 0, color: '#0A0F24' }
 const PRIZE_SLOT_GROUPS: Array<Prize & { slots: number[] }> = [
   // 1. แจ็กพ็อต 1 ช่อง (x30)
@@ -34,11 +37,17 @@ PRIZE_SLOT_GROUPS.forEach(({ slots, ...prize }) => {
 const PRIZES = Array.from({ length: TOTAL_SLOTS }, (_, i) => PRIZE_SLOT_MAP.get(i) ?? DEFAULT_PRIZE);
 
 const getTodayRange = () => {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
+  // ยึดวันตามเวลาไทยแบบตายตัว ไม่อิง timezone เครื่องผู้เล่น
+  // 00:00 น. ไทย = 17:00 น. UTC ของวันก่อนหน้า
+  const now = new Date()
+  const thaiNow = new Date(now.getTime() + THAI_TIME_OFFSET_MS)
 
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
+  const thaiYear = thaiNow.getUTCFullYear()
+  const thaiMonth = thaiNow.getUTCMonth()
+  const thaiDate = thaiNow.getUTCDate()
+
+  const start = new Date(Date.UTC(thaiYear, thaiMonth, thaiDate) - THAI_TIME_OFFSET_MS)
+  const end = new Date(start.getTime() + ONE_DAY_MS)
 
   return {
     startIso: start.toISOString(),
@@ -292,7 +301,7 @@ export default function LuckyWheel() {
 
               <div className="flex items-center space-x-2 md:space-x-3">
                 <span className="text-2xl md:text-3xl">⏳</span>
-                <p className="text-gray-200">เล่นได้วันละ <span className="text-yellow-400 font-bold">3 ครั้ง</span></p>
+                <p className="text-gray-200">เล่นได้วันละ <span className="text-yellow-400 font-bold">3 ครั้ง</span> รีเซ็ต <span className="text-yellow-400 font-bold">00:00 น. เวลาไทย</span></p>
               </div>
 
               <div className="border-t border-yellow-500/20 pt-3 md:pt-4 mt-3 md:mt-4">
@@ -419,6 +428,7 @@ export default function LuckyWheel() {
                 วันนี้เล่นไป <span className="text-white">{Math.min(spinsToday, DAILY_SPIN_LIMIT)}</span> / {DAILY_SPIN_LIMIT} ครั้ง
                 <span className="mx-2 text-white/30">•</span>
                 เหลือ <span className="text-white">{spinsLeft}</span> ครั้ง
+                <div className="mt-1 text-[10px] sm:text-xs font-medium text-white/50">รีเซ็ตทุกวันเวลา 00:00 น. ตามเวลาไทย</div>
               </div>
 
               <button 
