@@ -1,27 +1,29 @@
 // src/app/games/wheel/page.tsx
 'use client'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
-// ✅ สร้างวงล้อ 200 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
-// ปรับโอกาสได้เงิน: ช่องได้เงินรวม 50 ช่อง / ไม่ได้เงิน 150 ช่อง
+// ✅ สร้างวงล้อ 100 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
+// ปรับโอกาสได้เงิน: ช่องได้เงินรวม 25 ช่อง / ไม่ได้เงิน 75 ช่อง
+// จำกัดการเล่น: 3 ครั้งต่อวัน โดยนับจาก game_logs ของเกม Stellar Wheel
 type Prize = { label: string; multiplier: number; color: string }
 
-const TOTAL_SLOTS = 200
+const TOTAL_SLOTS = 100
+const DAILY_SPIN_LIMIT = 3
 const DEFAULT_PRIZE: Prize = { label: 'x0', multiplier: 0, color: '#0A0F24' }
 const PRIZE_SLOT_GROUPS: Array<Prize & { slots: number[] }> = [
   // 1. แจ็กพ็อต 1 ช่อง (x30)
   { label: 'JP', multiplier: 30, color: '#D97706', slots: [0] },
 
-  // 2. รางวัล x4 จำนวน 5 ช่อง
-  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [20, 60, 100, 140, 180] },
+  // 2. รางวัล x4 จำนวน 2 ช่อง
+  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [25, 75] },
 
-  // 3. รางวัล x3 จำนวน 10 ช่อง
-  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [10, 30, 50, 70, 90, 110, 130, 150, 170, 190] },
+  // 3. รางวัล x3 จำนวน 5 ช่อง
+  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [10, 30, 50, 70, 90] },
 
-  // 4. รางวัล x2 จำนวน 34 ช่อง
-  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [3, 9, 15, 21, 26, 32, 38, 44, 49, 56, 62, 68, 74, 79, 85, 91, 97, 103, 109, 115, 121, 126, 132, 138, 144, 149, 156, 162, 168, 174, 179, 185, 191, 197] },
+  // 4. รางวัล x2 จำนวน 17 ช่อง
+  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [4, 8, 14, 18, 24, 28, 34, 38, 44, 48, 54, 58, 64, 68, 84, 88, 94] },
 ]
 
 const PRIZE_SLOT_MAP = new Map<number, Prize>()
@@ -31,12 +33,32 @@ PRIZE_SLOT_GROUPS.forEach(({ slots, ...prize }) => {
 
 const PRIZES = Array.from({ length: TOTAL_SLOTS }, (_, i) => PRIZE_SLOT_MAP.get(i) ?? DEFAULT_PRIZE);
 
+const getTodayRange = () => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  }
+}
+
 export default function LuckyWheel() {
   const { profile, syncUser } = useUser()
   const [bet, setBet] = useState(10)
   const [spinning, setSpinning] = useState(false)
   const [showWinModal, setShowWinModal] = useState(false)
   const [winData, setWinData] = useState({ amount: 0, label: '' })
+  const [spinsToday, setSpinsToday] = useState(0)
+  const [loadingSpinLimit, setLoadingSpinLimit] = useState(false)
+
+  const profileId = profile?.id
+  const spinsLeft = Math.max(DAILY_SPIN_LIMIT - spinsToday, 0)
+  const reachedDailyLimit = spinsLeft <= 0
+  const spinButtonDisabled = spinning || loadingSpinLimit || reachedDailyLimit
 
   const spinSnd = useRef<HTMLAudioElement | null>(null)
   const winSnd = useRef<HTMLAudioElement | null>(null)
@@ -45,6 +67,43 @@ export default function LuckyWheel() {
   const wheelRef = useRef<HTMLDivElement>(null)
   const rotationRef = useRef(0)
   const isIdleRef = useRef(true)
+
+  const fetchTodaySpins = useCallback(async (): Promise<number | null> => {
+    if (!profileId) {
+      setSpinsToday(0)
+      return 0
+    }
+
+    const { startIso, endIso } = getTodayRange()
+    setLoadingSpinLimit(true)
+
+    try {
+      const { count, error } = await supabase
+        .from('game_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', profileId)
+        .eq('game_name', 'Stellar Wheel')
+        .gte('created_at', startIso)
+        .lt('created_at', endIso)
+
+      if (error) {
+        throw error
+      }
+
+      const total = count ?? 0
+      setSpinsToday(total)
+      return total
+    } catch (error) {
+      console.error('Error fetching daily spin limit:', error)
+      return null
+    } finally {
+      setLoadingSpinLimit(false)
+    }
+  }, [profileId])
+
+  useEffect(() => {
+    fetchTodaySpins()
+  }, [fetchTodaySpins])
 
   useEffect(() => {
     spinSnd.current = new Audio('/sounds/Wheelspin.wav')
@@ -76,9 +135,13 @@ export default function LuckyWheel() {
   }
 
   const startSpin = async () => {
-    if (spinning || !profile) return
+    if (spinning || loadingSpinLimit || !profile) return
     if (bet <= 0) return alert('กรุณาใส่ยอดเดิมพันที่มากกว่า 0')
     if (profile.balance < bet) return alert('ยอดเงินไม่เพียงพอ !')
+
+    const todaysCount = await fetchTodaySpins()
+    if (todaysCount === null) return alert('ไม่สามารถตรวจสอบจำนวนครั้งการเล่นวันนี้ได้ กรุณาลองใหม่')
+    if (todaysCount >= DAILY_SPIN_LIMIT) return alert('วันนี้เล่นครบ 3 ครั้งแล้ว กลับมาเล่นใหม่พรุ่งนี้นะ')
 
     setSpinning(true)
     setShowWinModal(false)
@@ -157,14 +220,19 @@ export default function LuckyWheel() {
           }
 
           // บันทึก log
-          await supabase.from('game_logs').insert([{
+          const { error: logError } = await supabase.from('game_logs').insert([{
             user_id: profile.id,
             game_name: 'Stellar Wheel',
             change_amount: winAmount > 0 ? winAmount - bet : -bet,
             result: `ได้รางวัล ${prize.label}`
           }])
 
+          if (logError) {
+            throw new Error('ไม่สามารถบันทึกประวัติการเล่นได้')
+          }
+
           // 🔥 Sync ก่อนแสดง modal
+          await fetchTodaySpins()
           await syncUser()
           setShowWinModal(true)
 
@@ -219,7 +287,12 @@ export default function LuckyWheel() {
               
               <div className="flex items-center space-x-2 md:space-x-3">
                 <span className="text-2xl md:text-3xl">🎰</span>
-                <p className="text-gray-200">หมุนวงล้อ <span className="text-yellow-400 font-bold">200 ช่อง</span></p>
+                <p className="text-gray-200">หมุนวงล้อ <span className="text-yellow-400 font-bold">100 ช่อง</span></p>
+              </div>
+
+              <div className="flex items-center space-x-2 md:space-x-3">
+                <span className="text-2xl md:text-3xl">⏳</span>
+                <p className="text-gray-200">เล่นได้วันละ <span className="text-yellow-400 font-bold">3 ครั้ง</span></p>
               </div>
 
               <div className="border-t border-yellow-500/20 pt-3 md:pt-4 mt-3 md:mt-4">
@@ -233,22 +306,22 @@ export default function LuckyWheel() {
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-purple-600/20 to-transparent p-2 md:p-3 rounded-lg border border-purple-500/30">
                     <span className="font-black text-purple-300 text-base sm:text-lg md:text-xl">x4</span>
-                    <span className="text-purple-400 font-bold text-sm sm:text-base md:text-lg">5 ช่อง</span>
+                    <span className="text-purple-400 font-bold text-sm sm:text-base md:text-lg">2 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-pink-600/20 to-transparent p-2 md:p-3 rounded-lg border border-pink-500/30">
                     <span className="font-black text-pink-300 text-base sm:text-lg md:text-xl">x3</span>
-                    <span className="text-pink-400 font-bold text-sm sm:text-base md:text-lg">10 ช่อง</span>
+                    <span className="text-pink-400 font-bold text-sm sm:text-base md:text-lg">5 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-blue-600/20 to-transparent p-2 md:p-3 rounded-lg border border-blue-500/30">
                     <span className="font-black text-blue-300 text-base sm:text-lg md:text-xl">x2</span>
-                    <span className="text-blue-400 font-bold text-sm sm:text-base md:text-lg">34 ช่อง</span>
+                    <span className="text-blue-400 font-bold text-sm sm:text-base md:text-lg">17 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-gray-600/20 to-transparent p-2 md:p-3 rounded-lg border border-gray-500/30">
                     <span className="font-black text-gray-300 text-base sm:text-lg md:text-xl">x0</span>
-                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">150 ช่อง</span>
+                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">75 ช่อง</span>
                   </div>
                 </div>
               </div>
@@ -327,27 +400,33 @@ export default function LuckyWheel() {
               <div className="flex justify-between items-center mb-4 md:mb-6 px-1 sm:px-2">
                 <span className="text-[10px] sm:text-xs md:text-sm font-bold text-gray-400 uppercase tracking-wider md:tracking-widest">ยอดเดิมพัน</span>
                 <div className="flex items-center space-x-3 sm:space-x-4 md:space-x-6">
-                  <button onClick={() => setBet(Math.max(10, bet - 10))} disabled={spinning} className="text-xl sm:text-2xl md:text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">－</button>
+                  <button onClick={() => setBet(Math.max(10, bet - 10))} disabled={spinButtonDisabled} className="text-xl sm:text-2xl md:text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">－</button>
                   <div className="flex items-center">
                     <span className="text-xl sm:text-2xl md:text-3xl font-bold text-yellow-500 mr-1 sm:mr-2">$</span>
                     <input 
                       type="number" 
                       value={bet} 
                       onChange={(e) => setBet(Math.min(parseInt(e.target.value) || 0, 1000))}
-                      disabled={spinning}
+                      disabled={spinButtonDisabled}
                       className="bg-transparent text-xl sm:text-2xl md:text-3xl font-bold text-center w-16 sm:w-20 md:w-24 focus:outline-none text-yellow-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
-                  <button onClick={() => setBet(Math.min(bet + 10, 1000))} disabled={spinning} className="text-xl sm:text-2xl md:text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">＋</button>
+                  <button onClick={() => setBet(Math.min(bet + 10, 1000))} disabled={spinButtonDisabled} className="text-xl sm:text-2xl md:text-3xl opacity-40 hover:opacity-100 transition disabled:opacity-0 hover:text-yellow-400">＋</button>
                 </div>
+              </div>
+
+              <div className={`mb-4 md:mb-5 rounded-2xl border px-4 py-3 text-center text-xs sm:text-sm md:text-base font-bold ${reachedDailyLimit ? 'border-red-500/30 bg-red-950/30 text-red-300' : 'border-yellow-500/20 bg-yellow-500/10 text-yellow-200'}`}>
+                วันนี้เล่นไป <span className="text-white">{Math.min(spinsToday, DAILY_SPIN_LIMIT)}</span> / {DAILY_SPIN_LIMIT} ครั้ง
+                <span className="mx-2 text-white/30">•</span>
+                เหลือ <span className="text-white">{spinsLeft}</span> ครั้ง
               </div>
 
               <button 
                 onClick={startSpin}
-                disabled={spinning}
-                className={`w-full py-4 sm:py-5 md:py-6 rounded-full font-black text-base sm:text-lg md:text-xl tracking-[0.15em] md:tracking-[0.2em] uppercase transition-all duration-300 ${spinning ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black hover:from-yellow-300 hover:to-yellow-500 shadow-[0_0_30px_rgba(218,165,32,0.5)] hover:scale-105 active:scale-95'}`}
+                disabled={spinButtonDisabled}
+                className={`w-full py-4 sm:py-5 md:py-6 rounded-full font-black text-base sm:text-lg md:text-xl tracking-[0.15em] md:tracking-[0.2em] uppercase transition-all duration-300 ${spinButtonDisabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black hover:from-yellow-300 hover:to-yellow-500 shadow-[0_0_30px_rgba(218,165,32,0.5)] hover:scale-105 active:scale-95'}`}
               >
-                {spinning ? 'กำลังหมุน...' : '🎰 หมุนเลย !'}
+                {spinning ? 'กำลังหมุน...' : loadingSpinLimit ? 'กำลังตรวจสอบ...' : reachedDailyLimit ? 'ครบ 3 ครั้งวันนี้แล้ว' : '🎰 หมุนเลย !'}
               </button>
             </div>
           </div>
@@ -370,7 +449,7 @@ export default function LuckyWheel() {
               onClick={() => setShowWinModal(false)}
               className="w-full py-4 sm:py-5 md:py-6 bg-white text-black font-bold rounded-full text-xs sm:text-sm uppercase tracking-wider md:tracking-widest hover:bg-yellow-500 transition-colors shadow-lg"
             >
-              เล่นต่อ ! 🎲
+              {spinsLeft > 0 ? 'เล่นต่อ ! 🎲' : 'ครบโควต้าวันนี้แล้ว'}
             </button>
           </div>
         </div>
