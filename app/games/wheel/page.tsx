@@ -5,24 +5,30 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
 // ✅ สร้างวงล้อ 100 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
-const PRIZES = Array.from({ length: 100 }).map((_, i) => {
-  // 1. แจ็กพ็อต 1 ช่อง (x30)
-  if (i === 0) return { label: 'JP', multiplier: 30, color: '#D97706' };
-  
-  // 2. รางวัล x4 จำนวน 5 ช่อง (ทุก ๆ 20 ช่อง)
-  if (i % 20 === 10) return { label: 'x4', multiplier: 4, color: '#7C3AED' };
-  
-  // 3. รางวัล x3 จำนวน 10 ช่อง (ทุก ๆ 10 ช่อง)
-  if (i % 10 === 5 && i % 20 !== 10) return { label: 'x3', multiplier: 3, color: '#DB2777' };
-  
-  // 4. รางวัล x2 จำนวน 20 ช่อง
-  if (i % 5 === 2 || i % 5 === 3) {
-    return { label: 'x2', multiplier: 2, color: '#1E3A8A' };
-  }
+// ปรับโอกาสได้เงินให้ลดลง: ช่องได้เงินรวม 27 ช่อง / ไม่ได้เงิน 73 ช่อง
+type Prize = { label: string; multiplier: number; color: string }
 
-  // 5. ที่เหลือ 64 ช่อง เป็น x0
-  return { label: 'x0', multiplier: 0, color: '#0A0F24' };
-});
+const DEFAULT_PRIZE: Prize = { label: 'x0', multiplier: 0, color: '#0A0F24' }
+const PRIZE_SLOT_GROUPS: Array<Prize & { slots: number[] }> = [
+  // 1. แจ็กพ็อต 1 ช่อง (x30)
+  { label: 'JP', multiplier: 30, color: '#D97706', slots: [0] },
+
+  // 2. รางวัล x4 จำนวน 3 ช่อง
+  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [16, 50, 84] },
+
+  // 3. รางวัล x3 จำนวน 5 ช่อง
+  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [8, 26, 42, 62, 90] },
+
+  // 4. รางวัล x2 จำนวน 18 ช่อง
+  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [3, 13, 21, 31, 37, 47, 55, 67, 73, 81, 95, 98, 18, 34, 58, 70, 78, 86] },
+]
+
+const PRIZE_SLOT_MAP = new Map<number, Prize>()
+PRIZE_SLOT_GROUPS.forEach(({ slots, ...prize }) => {
+  slots.forEach((slot) => PRIZE_SLOT_MAP.set(slot, prize))
+})
+
+const PRIZES = Array.from({ length: 100 }, (_, i) => PRIZE_SLOT_MAP.get(i) ?? DEFAULT_PRIZE);
 
 export default function LuckyWheel() {
   const { profile, syncUser } = useUser()
@@ -226,22 +232,22 @@ export default function LuckyWheel() {
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-purple-600/20 to-transparent p-2 md:p-3 rounded-lg border border-purple-500/30">
                     <span className="font-black text-purple-300 text-base sm:text-lg md:text-xl">x4</span>
-                    <span className="text-purple-400 font-bold text-sm sm:text-base md:text-lg">5 ช่อง</span>
+                    <span className="text-purple-400 font-bold text-sm sm:text-base md:text-lg">3 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-pink-600/20 to-transparent p-2 md:p-3 rounded-lg border border-pink-500/30">
                     <span className="font-black text-pink-300 text-base sm:text-lg md:text-xl">x3</span>
-                    <span className="text-pink-400 font-bold text-sm sm:text-base md:text-lg">10 ช่อง</span>
+                    <span className="text-pink-400 font-bold text-sm sm:text-base md:text-lg">5 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-blue-600/20 to-transparent p-2 md:p-3 rounded-lg border border-blue-500/30">
                     <span className="font-black text-blue-300 text-base sm:text-lg md:text-xl">x2</span>
-                    <span className="text-blue-400 font-bold text-sm sm:text-base md:text-lg">20 ช่อง</span>
+                    <span className="text-blue-400 font-bold text-sm sm:text-base md:text-lg">18 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-gray-600/20 to-transparent p-2 md:p-3 rounded-lg border border-gray-500/30">
                     <span className="font-black text-gray-300 text-base sm:text-lg md:text-xl">x0</span>
-                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">64 ช่อง</span>
+                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">73 ช่อง</span>
                   </div>
                 </div>
               </div>
