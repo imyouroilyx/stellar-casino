@@ -4,23 +4,24 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
-// ✅ สร้างวงล้อ 100 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
-// ปรับโอกาสได้เงินให้ลดลง: ช่องได้เงินรวม 27 ช่อง / ไม่ได้เงิน 73 ช่อง
+// ✅ สร้างวงล้อ 200 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
+// ปรับโอกาสได้เงินให้ลดลง: ช่องได้เงินรวม 27 ช่อง / ไม่ได้เงิน 173 ช่อง
 type Prize = { label: string; multiplier: number; color: string }
 
+const TOTAL_SLOTS = 200
 const DEFAULT_PRIZE: Prize = { label: 'x0', multiplier: 0, color: '#0A0F24' }
 const PRIZE_SLOT_GROUPS: Array<Prize & { slots: number[] }> = [
   // 1. แจ็กพ็อต 1 ช่อง (x30)
   { label: 'JP', multiplier: 30, color: '#D97706', slots: [0] },
 
   // 2. รางวัล x4 จำนวน 3 ช่อง
-  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [16, 50, 84] },
+  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [32, 100, 168] },
 
   // 3. รางวัล x3 จำนวน 5 ช่อง
-  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [8, 26, 42, 62, 90] },
+  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [16, 56, 88, 136, 184] },
 
   // 4. รางวัล x2 จำนวน 18 ช่อง
-  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [3, 13, 21, 31, 37, 47, 55, 67, 73, 81, 95, 98, 18, 34, 58, 70, 78, 86] },
+  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [6, 24, 34, 40, 48, 60, 70, 80, 96, 112, 116, 124, 144, 152, 160, 176, 192, 198] },
 ]
 
 const PRIZE_SLOT_MAP = new Map<number, Prize>()
@@ -28,7 +29,7 @@ PRIZE_SLOT_GROUPS.forEach(({ slots, ...prize }) => {
   slots.forEach((slot) => PRIZE_SLOT_MAP.set(slot, prize))
 })
 
-const PRIZES = Array.from({ length: 100 }, (_, i) => PRIZE_SLOT_MAP.get(i) ?? DEFAULT_PRIZE);
+const PRIZES = Array.from({ length: TOTAL_SLOTS }, (_, i) => PRIZE_SLOT_MAP.get(i) ?? DEFAULT_PRIZE);
 
 export default function LuckyWheel() {
   const { profile, syncUser } = useUser()
@@ -218,7 +219,7 @@ export default function LuckyWheel() {
               
               <div className="flex items-center space-x-2 md:space-x-3">
                 <span className="text-2xl md:text-3xl">🎰</span>
-                <p className="text-gray-200">หมุนวงล้อ <span className="text-yellow-400 font-bold">100 ช่อง</span></p>
+                <p className="text-gray-200">หมุนวงล้อ <span className="text-yellow-400 font-bold">200 ช่อง</span></p>
               </div>
 
               <div className="border-t border-yellow-500/20 pt-3 md:pt-4 mt-3 md:mt-4">
@@ -247,7 +248,7 @@ export default function LuckyWheel() {
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-gray-600/20 to-transparent p-2 md:p-3 rounded-lg border border-gray-500/30">
                     <span className="font-black text-gray-300 text-base sm:text-lg md:text-xl">x0</span>
-                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">73 ช่อง</span>
+                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">173 ช่อง</span>
                   </div>
                 </div>
               </div>
