@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 
 // ✅ สร้างวงล้อ 200 ช่องอัตโนมัติ และกระจายรางวัลให้สม่ำเสมอทั่ววงล้อ
-// ปรับโอกาสได้เงินให้ลดลง: ช่องได้เงินรวม 27 ช่อง / ไม่ได้เงิน 173 ช่อง
+// ปรับโอกาสได้เงิน: ช่องได้เงินรวม 50 ช่อง / ไม่ได้เงิน 150 ช่อง
 type Prize = { label: string; multiplier: number; color: string }
 
 const TOTAL_SLOTS = 200
@@ -14,14 +14,14 @@ const PRIZE_SLOT_GROUPS: Array<Prize & { slots: number[] }> = [
   // 1. แจ็กพ็อต 1 ช่อง (x30)
   { label: 'JP', multiplier: 30, color: '#D97706', slots: [0] },
 
-  // 2. รางวัล x4 จำนวน 3 ช่อง
-  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [32, 100, 168] },
+  // 2. รางวัล x4 จำนวน 5 ช่อง
+  { label: 'x4', multiplier: 4, color: '#7C3AED', slots: [20, 60, 100, 140, 180] },
 
-  // 3. รางวัล x3 จำนวน 5 ช่อง
-  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [16, 56, 88, 136, 184] },
+  // 3. รางวัล x3 จำนวน 10 ช่อง
+  { label: 'x3', multiplier: 3, color: '#DB2777', slots: [10, 30, 50, 70, 90, 110, 130, 150, 170, 190] },
 
-  // 4. รางวัล x2 จำนวน 18 ช่อง
-  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [6, 24, 34, 40, 48, 60, 70, 80, 96, 112, 116, 124, 144, 152, 160, 176, 192, 198] },
+  // 4. รางวัล x2 จำนวน 34 ช่อง
+  { label: 'x2', multiplier: 2, color: '#1E3A8A', slots: [3, 9, 15, 21, 26, 32, 38, 44, 49, 56, 62, 68, 74, 79, 85, 91, 97, 103, 109, 115, 121, 126, 132, 138, 144, 149, 156, 162, 168, 174, 179, 185, 191, 197] },
 ]
 
 const PRIZE_SLOT_MAP = new Map<number, Prize>()
@@ -233,22 +233,22 @@ export default function LuckyWheel() {
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-purple-600/20 to-transparent p-2 md:p-3 rounded-lg border border-purple-500/30">
                     <span className="font-black text-purple-300 text-base sm:text-lg md:text-xl">x4</span>
-                    <span className="text-purple-400 font-bold text-sm sm:text-base md:text-lg">3 ช่อง</span>
+                    <span className="text-purple-400 font-bold text-sm sm:text-base md:text-lg">5 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-pink-600/20 to-transparent p-2 md:p-3 rounded-lg border border-pink-500/30">
                     <span className="font-black text-pink-300 text-base sm:text-lg md:text-xl">x3</span>
-                    <span className="text-pink-400 font-bold text-sm sm:text-base md:text-lg">5 ช่อง</span>
+                    <span className="text-pink-400 font-bold text-sm sm:text-base md:text-lg">10 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-blue-600/20 to-transparent p-2 md:p-3 rounded-lg border border-blue-500/30">
                     <span className="font-black text-blue-300 text-base sm:text-lg md:text-xl">x2</span>
-                    <span className="text-blue-400 font-bold text-sm sm:text-base md:text-lg">18 ช่อง</span>
+                    <span className="text-blue-400 font-bold text-sm sm:text-base md:text-lg">34 ช่อง</span>
                   </div>
                   
                   <div className="flex justify-between items-center bg-gradient-to-r from-gray-600/20 to-transparent p-2 md:p-3 rounded-lg border border-gray-500/30">
                     <span className="font-black text-gray-300 text-base sm:text-lg md:text-xl">x0</span>
-                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">173 ช่อง</span>
+                    <span className="text-gray-400 font-bold text-sm sm:text-base md:text-lg">150 ช่อง</span>
                   </div>
                 </div>
               </div>
